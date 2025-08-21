@@ -1,4 +1,4 @@
-package com.example.spikestream.ui.theme
+package com.leonardos.spikestream.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -17,9 +17,9 @@ private val DarkColorScheme = darkColorScheme(
     secondary = Secondary,
     onSecondary = OnSecondary,
     background = Background,
-    onBackground = OnBackground,
     surface = Surface,
-    onSurface = OnSurface,
+    onBackground = OnBackground,
+    //onSurface = OnSurface,
     error = Error,
     outline = Outline
 )
@@ -30,9 +30,9 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = OnPrimary,
     secondary = Secondary,
     onSecondary = OnSecondary,
-    background = Background,
+    background = OnBackground,
     surface = Surface,
-    onBackground = OnBackground,
+    onBackground = Background,
     error = Error
 )
 

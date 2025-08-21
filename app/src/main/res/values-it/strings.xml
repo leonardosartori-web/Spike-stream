@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Login -->
+    <string name="login_title">Accedi</string>
+    <string name="login_google">Accedi con Google</string>
+    <string name="login_register">Non hai un account? Registrati</string>
+    <string name="login_password_forgot">Hai dimenticato la password? Reimpostala</string>
+
+    <!-- Dashboard -->
+    <string name="logout">Disconnetti</string>
+    <string name="no_match">Nessuna partita presente.</string>
+    <string name="no_match1">Se non vedi le partite, ricarica questa pagina</string>
+    <string name="open">Apri</string>
+    <string name="delete">Elimina</string>
+    <string name="add_match">Aggiungi nuova diretta</string>
+    <string name="deletion_error">Errore nell\'eliminazione</string>
+
+    <!-- Register -->
+    <string name="register_title">Registrati</string>
+    <string name="register_login_back">Hai già un account? Accedi</string>
+    <string name="register_success">Controlla l\'email per confermare</string>
+
+    <!-- Create Match -->
+    <string name="create_match_title">Configura Streaming</string>
+    <string name="guide_button_hide">❌ Nascondi guida per lo streaming</string>
+    <string name="guide_button_show">ℹ️ Mostra guida per lo streaming</string>
+    <string name="guide_title">Come configurare lo streaming su YouTube, Twitch o Instagram:</string>
+    <string name="guide_body">
+    <![CDATA[
+    📺 <b>YouTube</b>:
+    <ul>
+        <li>Vai su <a href="https://studio.youtube.com">studio.youtube.com</a></li>
+        <li>Clicca su “Vai dal vivo”</li>
+        <li>Troverai:
+            <ul>
+                <li>URL RTMP: <code>rtmp://a.rtmp.youtube.com/live2</code></li>
+                <li>Chiave: es. <i>abcd-1234-xxxx-zzzz</i></li>
+            </ul>
+        </li>
+        <li>Inserisci qui: <code>rtmp://a.rtmp.youtube.com/live2/abcd-1234-xxxx-zzzz</code></li>
+    </ul>
+
+    🎮 <b>Twitch</b>:
+    <ul>
+        <li>Vai su <a href="https://dashboard.twitch.tv">dashboard.twitch.tv</a></li>
+        <li>Menu &gt; Impostazioni &gt; Stream</li>
+        <li>URL RTMP: <code>rtmp://live.twitch.tv/app</code></li>
+        <li>Chiave: es. <i>live_12543_...</i></li>
+        <li>Inserisci qui: <code>rtmp://live.twitch.tv/app/live_12543_...</code></li>
+    </ul>
+    ]]>
+</string>
+
+    <string name="guide_footer">L’URL RTMP viene salvato in forma criptata e non è visibile a nessuno.</string>
+    <string name="local_team">Squadra Casa</string>
+    <string name="guest_team">Squadra Ospiti</string>
+    <string name="create_match">Crea match</string>
+    <string name="create_match_error1">Inserisci nome squadra casa</string>
+    <string name="create_match_error2">Inserisci nome squadra ospite</string>
+    <string name="create_match_error3">URL deve iniziare con rtmp://</string>
+
+    <!-- Options -->
+    <string name="copy_link">Link copiato negli appunti!</string>
+    <string name="generate_link">Genera Link Invito</string>
+    <string name="score_editing_title_info">Come modificare il punteggio?</string>
+    <string name="score_editing_full_info"><![CDATA[
+    Per modificare il punteggio durante la diretta, è necessario generare un <b>link</b> prima della partita.<br/><br/>
+    Questo link apre una <b>pagina web</b> da cui si possono aggiornare i punti delle due squadre in tempo reale.<br/><br/>
+    🔗 Si consiglia di condividere il link con una sola persona di fiducia, per evitare modifiche simultanee.<br/><br/>
+    ⚠️ Chi possiede il link può cambiare i punteggi, quindi <b>non va condiviso pubblicamente</b>.
+]]></string>
+
+
+
+    <!-- Streaming -->
+    <string name="streaming_launched">Streaming avviato!</string>
+    <string name="stop_stream">Ferma Streaming</string>
+    <string name="launch_stream">Avvia Streaming</string>
+    <string name="permissions">"Per favore abilita i permessi"</string>
+
+
+
+    <string name="how_to_title">📘 Come usare Spikestream</string>
+
+    <!-- Descrizione app -->
+    <string name="app_purpose">
+    Spikestream ti permette di trasmettere in diretta le partite e gestire il punteggio in tempo reale, così gli spettatori possono seguirle ovunque si trovino.
+</string>
+
+    <!-- Funzionamento -->
+    <string name="how_to_steps_title">Come funziona</string>
+    <string name="step1_title">1. Accedi o registrati</string>
+    <string name="step1_desc">Effettua l’accesso o crea un nuovo account. Dopo il login verrai reindirizzato alla tua lista di partite create.</string>
+
+    <string name="step2_title">2. Crea una partita</string>
+    <string name="step2_desc"><![CDATA[Premi il bottone alla fine della lista delle partite. Inserisci i nomi delle squadre e l’indirizzo RTMP dove trasmettere la partita.
+    Per Youtube, puoi guardare il <a href="https://www.youtube.com/watch?v=M3H3aX1Aoz4">video tutorial</a> su YouTube per sapere come creare un URL RTMP per la live.]]></string>
+
+    <string name="step3_title">3. Conferma la creazione</string>
+    <string name="step3_desc">Clicca su "Crea match" per confermare. Tornerai alla dashboard con tutte le tue partite.</string>
+
+    <string name="step4_title">4. Avvia lo streaming</string>
+    <string name="step4_desc">Apri la partita dalla lista. Nella schermata della partita troverai due bottoni:
+    - "Avvia streaming" per iniziare la trasmissione.
+    - "Genera Link Invito" per generare un link da condividere con chi aggiornerà il punteggio (meglio solo con una persona).</string>
+
+
+
+</resources>

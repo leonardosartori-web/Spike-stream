@@ -5,22 +5,22 @@ plugins {
 }
 
 android {
-    namespace = "com.example.spikestream"
+    namespace = "com.leonardos.spikestream"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.spikestream"
+        applicationId = "com.leonardos.spikestream"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 12
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -48,6 +48,8 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("org.json:json:20210307")
     implementation("com.google.accompanist:accompanist-swiperefresh:0.33.2-alpha")
+    implementation("com.google.android.gms:play-services-ads:22.6.0")
+    implementation("org.slf4j:slf4j-nop:2.0.9")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

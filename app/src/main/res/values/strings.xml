@@ -1,4 +1,109 @@
 <resources>
-    <string name="app_name">Spike Stream</string>
-    <string name="server_client_id">66523707648-tdaknu48nsfo4t68lhfvkpudd0l7fijj.apps.googleusercontent.com</string>
+    <string name="app_name" translatable="false">Spike Stream</string>
+    <string name="server_client_id" translatable="false">66523707648-tdaknu48nsfo4t68lhfvkpudd0l7fijj.apps.googleusercontent.com</string>
+
+    <!-- Login -->
+    <string name="login_title">Login</string>
+    <string name="login_google">Login with Google</string>
+    <string name="login_register">Don\'t have an account? Register</string>
+    <string name="login_password_forgot">Forgot your password? Reset it</string>
+
+
+    <!-- Dashboard -->
+    <string name="logout">Logout</string>
+    <string name="no_match">No matches here.</string>
+    <string name="no_match1">If you don\'t see your matches, refresh this page</string>
+    <string name="open">Open</string>
+    <string name="delete">Delete</string>
+    <string name="add_match">Add New Match</string>
+    <string name="deletion_error">Error while deleting</string>
+
+    <!-- Register -->
+    <string name="register_title">Register</string>
+    <string name="register_login_back">Already have an account? Log in</string>
+    <string name="register_success">Check your email to confirm</string>
+
+    <!-- Create Match -->
+    <string name="create_match_title">Configure Streaming</string>
+    <string name="guide_button_hide">❌ Hide streaming guide</string>
+    <string name="guide_button_show">ℹ️ Show streaming guide</string>
+    <string name="guide_title">How to set up streaming on YouTube, Twitch or Instagram:</string>
+    <string name="guide_body">
+    <![CDATA[
+    📺 <b>YouTube</b>:
+    <ul>
+        <li>Go to <a href="https://studio.youtube.com">studio.youtube.com</a></li>
+        <li>Click on “Go live”</li>
+        <li>You will find:
+            <ul>
+                <li>RTMP URL: <code>rtmp://a.rtmp.youtube.com/live2</code></li>
+                <li>Stream key: e.g. <i>abcd-1234-xxxx-zzzz</i></li>
+            </ul>
+        </li>
+        <li>Enter this: <code>rtmp://a.rtmp.youtube.com/live2/abcd-1234-xxxx-zzzz</code></li>
+    </ul>
+
+    🎮 <b>Twitch</b>:
+    <ul>
+        <li>Go to <a href="https://dashboard.twitch.tv">dashboard.twitch.tv</a></li>
+        <li>Menu &gt; Settings &gt; Stream</li>
+        <li>RTMP URL: <code>rtmp://live.twitch.tv/app</code></li>
+        <li>Stream key: e.g. <i>live_12543_...</i></li>
+        <li>Enter this: <code>rtmp://live.twitch.tv/app/live_12543_...</code></li>
+    </ul>
+    ]]>
+</string>
+
+    <string name="guide_footer">The RTMP URL is encrypted and not visible to anyone.</string>
+    <string name="local_team">Home Team</string>
+    <string name="guest_team">Away Team</string>
+    <string name="create_match">Create Match</string>
+    <string name="create_match_error1">Enter home team name</string>
+    <string name="create_match_error2">Enter away team name</string>
+    <string name="create_match_error3">URL must start with rtmp://</string>
+
+    <!-- Options -->
+    <string name="copy_link">Link copied to clipboard!</string>
+    <string name="generate_link">Generate Invite Link</string>
+    <string name="score_editing_title_info">How to modify the score?</string>
+    <string name="score_editing_full_info"><![CDATA[
+    To modify the score during the live stream, you need to generate a <b>link</b> before the match.<br/><br/>
+    This link opens a <b>web page</b> where you can update the points of both teams in real time.<br/><br/>
+    🔗 It is recommended to share the link with only one trusted person to avoid simultaneous changes.<br/><br/>
+    ⚠️ Anyone with the link can change the scores, so <b>do not share it publicly</b>.
+]]></string>
+
+
+    <!-- Streaming -->
+    <string name="streaming_launched">Streaming started!</string>
+    <string name="stop_stream">Stop Streaming</string>
+    <string name="launch_stream">Start Streaming</string>
+    <string name="permissions">Please enable permissions</string>
+
+
+    <string name="how_to_title">📘 How to use Spikestream</string>
+
+    <!-- App purpose -->
+    <string name="app_purpose">
+    Spikestream allows you to live stream matches and manage the score in real time, so viewers can follow them from anywhere.
+</string>
+
+    <!-- How it works -->
+    <string name="how_to_steps_title">How it works</string>
+    <string name="step1_title">1. Log in or sign up</string>
+    <string name="step1_desc">Log in or create a new account. After logging in, you will be redirected to your list of created matches.</string>
+
+    <string name="step2_title">2. Create a match</string>
+    <string name="step2_desc"><![CDATA[Tap the button at the bottom of the match list. Enter the team names and the RTMP address where the match will be streamed.
+    For Youtube, you can watch the <a href="https://www.youtube.com/watch?v=M3H3aX1Aoz4">YouTube tutorial</a> to learn how to create an RTMP URL for the live stream.]]></string>
+
+    <string name="step3_title">3. Confirm creation</string>
+    <string name="step3_desc">Tap "Create match" to confirm. You will return to the dashboard with all your matches.</string>
+
+    <string name="step4_title">4. Start streaming</string>
+    <string name="step4_desc">Open the match from the list. In the match screen you will find two buttons:
+    - "Start streaming" to begin the broadcast.
+    - "Generate Invite Link" to create a link to share with the person who will update the score (preferably just one person).</string>
+
+
 </resources>

@@ -3,7 +3,7 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import javax.net.ssl.*
 
-fun getUnsafeOkHttpClient(): OkHttpClient {
+/*fun getUnsafeOkHttpClient(): OkHttpClient {
     val trustAllCerts = arrayOf<TrustManager>(
         object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
@@ -22,4 +22,10 @@ fun getUnsafeOkHttpClient(): OkHttpClient {
         .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
         .hostnameVerifier { _, _ -> true }
         .build()
+}*/
+
+fun getUnsafeOkHttpClient(): OkHttpClient {
+    return OkHttpClient.Builder()
+        .build()
 }
+

@@ -1,12 +1,15 @@
-package com.example.spikestream
+package com.leonardos.spikestream
 
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,20 +17,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,10 +36,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import com.example.spikestream.ui.theme.MyApplicationTheme
+import androidx.core.text.HtmlCompat
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.appopen.AppOpenAd
+import com.google.android.gms.ads.rewarded.RewardedAd
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
+import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import getUnsafeOkHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -61,47 +68,54 @@ class CreateMatchActivity: ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         tokenManager = TokenManager(applicationContext)
+
         setContent {
             MyApplicationTheme {
-                val tokenState = remember { mutableStateOf<String?>(null) }
-                val coroutineScope = rememberCoroutineScope()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                )
+                {
+                    val tokenState = remember { mutableStateOf<String?>(null) }
+                    val coroutineScope = rememberCoroutineScope()
 
-                LaunchedEffect(Unit) {
-                    tokenManager.tokenFlow.collect { token ->
-                        tokenState.value = token
+                    LaunchedEffect(Unit) {
+                        tokenManager.tokenFlow.collect { token ->
+                            tokenState.value = token
+                        }
                     }
-                }
 
-                val showRegister = remember { mutableStateOf(false) }
+                    val showRegister = remember { mutableStateOf(false) }
 
-                if (tokenState.value == null) {
-                    // Mostra la login
-                    LoginScreen(onLoginSuccess = { newToken ->
-                        coroutineScope.launch {
-                            tokenManager.saveToken(newToken)
-                            tokenState.value = newToken
-                        }
-                    },
-                        onRegisterClick = {
-                            showRegister.value = true
+                    if (tokenState.value == null) {
+                        // Mostra la login
+                        LoginScreen(onLoginSuccess = { newToken ->
+                            coroutineScope.launch {
+                                tokenManager.saveToken(newToken)
+                                tokenState.value = newToken
+                            }
                         },
-                        onGoogleLoginClick = {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://spikestream.tooolky.com/auth/google")
-                            )
-                            startActivity(intent)
-                        },
-                        onForgotPasswordClick = {
-                            val intent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://spikestream.tooolky.com/auth/reset-password")
-                            )
-                            startActivity(intent)
-                        }
-                    )
-                } else {
-                    CreateMatchScreen(tokenManager)
+                            onRegisterClick = {
+                                showRegister.value = true
+                            },
+                            onGoogleLoginClick = {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://spikestream.tooolky.com/auth/google")
+                                )
+                                startActivity(intent)
+                            },
+                            onForgotPasswordClick = {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://spikestream.tooolky.com/auth/reset-password")
+                                )
+                                startActivity(intent)
+                            }
+                        )
+                    } else {
+                        CreateMatchScreen(tokenManager)
+                    }
                 }
             }
         }
@@ -118,8 +132,6 @@ class CreateMatchActivity: ComponentActivity() {
         var team2 by remember { mutableStateOf("") }
         var streamUrl by remember { mutableStateOf("rtmp://") }
 
-        var showHelp by remember { mutableStateOf(false) }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -128,92 +140,40 @@ class CreateMatchActivity: ComponentActivity() {
         ) {
 
             Text(
-                text = "Configura Streaming",
+                text = stringResource(R.string.create_match_title),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-// Testo cliccabile per mostrare/nascondere la guida
-            Text(
-                text = if (showHelp) "❌ Nascondi guida per lo streaming" else "ℹ️ Mostra guida per lo streaming",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.primary,
-                    textDecoration = TextDecoration.Underline
-                ),
-                modifier = Modifier
-                    .clickable { showHelp = !showHelp }
-                    .padding(bottom = if (showHelp) 16.dp else 32.dp)
-            )
+            TextButton(onClick = {
+                val message = HtmlCompat.fromHtml(
+                    context.getString(R.string.guide_body),
+                    HtmlCompat.FROM_HTML_MODE_LEGACY
+                )
 
-            if (showHelp) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = "Informazioni",
-                                tint = Color(0xFFFFA000),
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = "Come configurare lo streaming su YouTube, Twitch o Instagram:",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = """
-📺 **YouTube**:
-1. Vai su https://studio.youtube.com
-2. Clicca su “Vai dal vivo”
-3. Troverai:
-   - URL RTMP: rtmp://a.rtmp.youtube.com/live2
-   - Chiave: es. abcd-1234-xxxx-zzzz
-4. Inserisci qui: rtmp://a.rtmp.youtube.com/live2/abcd-1234-xxxx-zzzz
-
-🎮 **Twitch**:
-1. Vai su https://dashboard.twitch.tv
-2. Menu > Impostazioni > Stream
-3. URL RTMP: rtmp://live.twitch.tv/app
-4. Chiave: es. live_12543_...
-5. Inserisci qui: rtmp://live.twitch.tv/app/live_12543_...
-
-""".trimIndent(),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Sicurezza",
-                                tint = Color(0xFF4CAF50),
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = "L’URL RTMP viene salvato in forma criptata e non è visibile a nessuno.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF2E7D32)
-                            )
-                        }
-                    }
+                val textView = TextView(context).apply {
+                    text = message
+                    movementMethod = LinkMovementMethod.getInstance()
+                    setPadding(48, 32, 48, 0)
+                    setTextIsSelectable(true)
                 }
+
+
+                android.app.AlertDialog.Builder(context)
+                    .setTitle(context.getString(R.string.guide_title))
+                    .setView(textView)
+                    .setPositiveButton("OK", null)
+                    .show()
+            }) {
+                Text(context.getString(R.string.guide_button_show))
             }
 
             // Input fields
             OutlinedTextField(
                 value = team1,
                 onValueChange = { team1 = it },
-                label = { Text("Squadra Casa") },
+                label = { Text(stringResource(R.string.local_team)) },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -222,7 +182,8 @@ class CreateMatchActivity: ComponentActivity() {
             OutlinedTextField(
                 value = team2,
                 onValueChange = { team2 = it },
-                label = { Text("Squadra Ospiti") },
+                label = { Text(stringResource(R.string.guest_team)) },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -232,26 +193,32 @@ class CreateMatchActivity: ComponentActivity() {
                 value = streamUrl,
                 onValueChange = { streamUrl = it },
                 label = { Text("URL RTMP") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
+            var isLoading by remember { mutableStateOf(false) }
+
             Button(
                 onClick = {
                     if (validateInput(team1, team2, streamUrl)) {
                         if (token != null) {
+                            isLoading = true
                             scope.launch {
                                 when (val result = makeCreateMatchRequest(token!!, team1, team2, streamUrl)) {
                                     is CreateMatchResult.Success -> {
-                                        val finalMatchId = result.matchId
+                                        /*val finalMatchId = result.matchId
                                         val intent = Intent(context, MatchOptionsActivity::class.java).apply {
                                             putExtra("TEAM_1", team1)
                                             putExtra("TEAM_2", team2)
                                             putExtra("RTMP_URL", streamUrl)
                                             putExtra("MATCH_ID", finalMatchId)
                                         }
-                                        context.startActivity(intent)
+                                        context.startActivity(intent)*/
+                                        isLoading = false
+                                        finish()
                                     }
                                     is CreateMatchResult.Error -> {
                                         Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
@@ -266,9 +233,17 @@ class CreateMatchActivity: ComponentActivity() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = team1.isNotBlank() && team2.isNotBlank() && streamUrl.startsWith("rtmp://")
+                enabled = !isLoading && team1.isNotBlank() && team2.isNotBlank() && streamUrl.startsWith("rtmp://")
             ) {
-                Text("Crea partita")
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Text(stringResource(R.string.create_match))
+                }
             }
         }
 
@@ -278,15 +253,15 @@ class CreateMatchActivity: ComponentActivity() {
     private fun validateInput(team1: String, team2: String, streamUrl: String): Boolean {
         return when {
             team1.isBlank() -> {
-                Toast.makeText(this, "Inserisci nome squadra casa", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, this.getString(R.string.create_match_error1), Toast.LENGTH_SHORT).show()
                 false
             }
             team2.isBlank() -> {
-                Toast.makeText(this, "Inserisci nome squadra ospiti", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, this.getString(R.string.create_match_error2), Toast.LENGTH_SHORT).show()
                 false
             }
             !streamUrl.startsWith("rtmp://") -> {
-                Toast.makeText(this, "URL deve iniziare con rtmp://", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, this.getString(R.string.create_match_error3), Toast.LENGTH_SHORT).show()
                 false
             }
             else -> true

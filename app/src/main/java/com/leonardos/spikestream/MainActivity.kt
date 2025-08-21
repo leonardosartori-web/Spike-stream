@@ -1,5 +1,6 @@
-package com.example.spikestream
+package com.leonardos.spikestream
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -9,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,15 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -47,9 +42,17 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
-import com.example.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.appopen.AppOpenAd
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.rewarded.RewardedAd
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import getUnsafeOkHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -111,9 +114,92 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var tokenManager: TokenManager
     private var latestIntentData: Uri? = null
+    lateinit var rewardedAd: RewardedAd
+    var isRewardedAdLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MobileAds.initialize(this) {}
+
+        setContent {
+            MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                )
+                {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
+        }
+
+        // 👇 Carica e mostra l'annuncio all'avvio
+        val adRequest = AdRequest.Builder().build()
+        AppOpenAd.load(
+            this,
+            "ca-app-pub-2622126149242920/3023467125", // 👈 ID di test (sostituisci con il tuo)
+            adRequest,
+            AppOpenAd.APP_OPEN_AD_ORIENTATION_PORTRAIT,
+            object : AppOpenAd.AppOpenAdLoadCallback() {
+                override fun onAdLoaded(ad: AppOpenAd) {
+                    ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                        override fun onAdDismissedFullScreenContent() {
+                            // Quando l'annuncio finisce, mostra l'app
+                            startCompose()
+                        }
+
+                        override fun onAdFailedToShowFullScreenContent(p0: AdError) {
+                            startCompose()
+                        }
+                    }
+
+                    ad.show(this@MainActivity)
+                }
+
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    // Se fallisce, continua subito
+                    startCompose()
+                }
+            }
+        )
+
+        loadRewardedAd()
+
+
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadRewardedAd() // ricarica sempre
+    }
+
+
+    private fun loadRewardedAd() {
+        val adRequest = AdRequest.Builder().build()
+        RewardedAd.load(
+            this,
+            "ca-app-pub-2622126149242920/6851117213", // <-- tuo ID rewarded
+            adRequest,
+            object : RewardedAdLoadCallback() {
+                override fun onAdLoaded(ad: RewardedAd) {
+                    rewardedAd = ad
+                    isRewardedAdLoaded = true
+                }
+
+                override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                    isRewardedAdLoaded = false
+                }
+            }
+        )
+    }
+
+    private fun startCompose() {
+
         tokenManager = TokenManager(applicationContext)
 
         // Salva il primo intent ricevuto all'avvio
@@ -121,6 +207,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MyApplicationTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                )
+                {
                 val tokenState = remember { mutableStateOf<String?>(null) }
                 val coroutineScope = rememberCoroutineScope()
                 val showRegister = remember { mutableStateOf(false) }
@@ -196,6 +287,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+            }
         }
     }
 
@@ -240,6 +332,7 @@ suspend fun makeLoginRequest(email: String, password: String): AuthResult = with
 
 @Composable
 fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, onGoogleLoginClick: () -> Unit, onForgotPasswordClick: () -> Unit) {
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -253,7 +346,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, o
             .padding(16.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Login", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
+        Text(stringResource(R.string.login_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(16.dp))
 
@@ -262,7 +355,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, o
             onValueChange = { email = it },
             label = { Text("Email") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(8.dp))
@@ -272,7 +366,8 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, o
             onValueChange = { password = it },
             label = { Text("Password") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(16.dp))
@@ -311,7 +406,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, o
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text("Accedi")
+                Text(stringResource(R.string.login_title))
             }
         }
 
@@ -323,20 +418,31 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, o
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Accedi con Google")
+            Text(stringResource(R.string.login_google))
         }
 
 
         Spacer(Modifier.height(8.dp))
 
         TextButton(onClick = onRegisterClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text("Non hai un account? Registrati")
+            Text(stringResource(R.string.login_register))
         }
 
         Spacer(Modifier.height(8.dp))
 
         TextButton(onClick = onForgotPasswordClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text("Hai dimenticato la password? Reimpostala")
+            Text(stringResource(R.string.login_password_forgot))
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        TextButton(
+            onClick = {
+                context.startActivity(Intent(context, InfoActivity::class.java))
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text("Info app")
         }
     }
 }
@@ -380,6 +486,7 @@ fun DashboardScreen(
     val isRefreshing = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val activity = context as Activity
 
     fun loadStreams() {
         scope.launch {
@@ -429,7 +536,7 @@ fun DashboardScreen(
                     onTokenExpired() // oppure puoi passare una lambda come parametro
                 }
             ) {
-                Text("Logout")
+                Text(stringResource(R.string.logout))
             }
         }
 
@@ -440,64 +547,104 @@ fun DashboardScreen(
             onRefresh = { loadStreams() },
             modifier = Modifier.weight(1f)
         ) {
-            LazyColumn {
-                items(streams) { stream ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(4.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(stream.title)
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                if (streams.isNotEmpty()) {
+                    items(streams) { stream ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            elevation = CardDefaults.cardElevation(4.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(stream.title)
 
-                            Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(8.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Button(onClick = {
-                                    val intent = Intent(context, MatchOptionsActivity::class.java).apply {
-                                        putExtra("RTMP_URL", stream.rtmpUrl)
-                                        putExtra("TEAM_1", stream.teamA)
-                                        putExtra("TEAM_2", stream.teamB)
-                                        putExtra("MATCH_ID", stream.matchId)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Button(onClick = {
+                                        val intent = Intent(context, MatchOptionsActivity::class.java).apply {
+                                            putExtra("RTMP_URL", stream.rtmpUrl)
+                                            putExtra("TEAM_1", stream.teamA)
+                                            putExtra("TEAM_2", stream.teamB)
+                                            putExtra("MATCH_ID", stream.matchId)
+                                        }
+                                        context.startActivity(intent)
+                                    }) {
+                                        Text(stringResource(R.string.open))
                                     }
-                                    context.startActivity(intent)
-                                }) {
-                                    Text("Apri")
-                                }
 
-                                Button(
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                    onClick = {
-                                        scope.launch {
-                                            val success = makeDeleteMatch(token, stream.matchId)
-                                            if (success) {
-                                                streams.remove(stream)
-                                            } else {
-                                                Toast.makeText(context, "Errore nell'eliminazione", Toast.LENGTH_SHORT).show()
+                                    Button(
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                        onClick = {
+                                            scope.launch {
+                                                val success = makeDeleteMatch(token, stream.matchId)
+                                                if (success) {
+                                                    streams.remove(stream)
+                                                } else {
+                                                    Toast.makeText(context, context.getString(R.string.deletion_error), Toast.LENGTH_SHORT).show()
+                                                }
                                             }
                                         }
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.delete),
+                                            color = MaterialTheme.colorScheme.onError
+                                        )
                                     }
-                                ) {
-                                    Text("Elimina", color = MaterialTheme.colorScheme.onError)
                                 }
                             }
+                        }
+                    }
+                } else {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(stringResource(R.string.no_match))
                         }
                     }
                 }
             }
         }
 
+        Spacer(Modifier.height(4.dp))
+
+        Text(stringResource(R.string.no_match1))
+
         Spacer(Modifier.height(12.dp))
 
         Button(
-            onClick = onCreateStreamClick,
+            onClick = {
+                if ((context as MainActivity).isRewardedAdLoaded) {
+                    (context as MainActivity).rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
+                        override fun onAdDismissedFullScreenContent() {
+                            (context as MainActivity).isRewardedAdLoaded = false
+                            onCreateStreamClick() // vai alla pagina dopo l’annuncio
+                        }
+
+                        override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                            onCreateStreamClick()
+                        }
+                    }
+
+                    (context as MainActivity).rewardedAd.show(activity) {
+                        // onUserEarnedReward
+                    }
+                } else {
+                    onCreateStreamClick()
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Aggiungi nuova diretta")
+            Text(stringResource(R.string.add_match))
         }
     }
 }
@@ -532,13 +679,15 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
 
     val scope = rememberCoroutineScope()
 
+    val successMsg = stringResource(R.string.register_success)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Registrati", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
+        Text(stringResource(R.string.register_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(16.dp))
 
@@ -577,7 +726,7 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
                     message = result
                     isLoading = false
                     if (result?.startsWith("Success") == true) {
-                        onRegisterSuccess(result)
+                        onRegisterSuccess(successMsg)
                     }
                 }
             },
@@ -591,14 +740,14 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text("Registrati")
+                Text(stringResource(R.string.register_title))
             }
         }
 
         Spacer(Modifier.height(8.dp))
 
         TextButton(onClick = onBackToLogin) {
-            Text("Hai già un account? Accedi")
+            Text(stringResource(R.string.register_login_back))
         }
     }
 }

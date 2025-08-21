@@ -1,29 +1,34 @@
-package com.example.spikestream
+package com.leonardos.spikestream
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.example.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.pedro.common.ConnectChecker
 import com.pedro.common.VideoCodec
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
@@ -61,7 +66,10 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         val team2 = intent.getStringExtra("TEAM_2") ?: "Squadra 2"
         val matchId = intent.getStringExtra("MATCH_ID") ?: "Match id"
 
-        setContent { MyApplicationTheme { StreamingScreen(team1, team2, rtmpUrl, matchId) }  }
+        setContent { MyApplicationTheme { Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ){ StreamingScreen(team1, team2, rtmpUrl, matchId) } }  }
     }
 
     fun drawScoreBitmap(
@@ -213,14 +221,40 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             ActivityResultContracts.RequestMultiplePermissions()
         ) { result ->
             if (result.values.all { it }) if (::rtmpCamera.isInitialized) rtmpCamera.startPreview()
-            else Toast.makeText(ctx, "Permessi negati", Toast.LENGTH_SHORT).show()
+            else Toast.makeText(ctx, ctx.getString(R.string.permissions), Toast.LENGTH_SHORT).show()
         }
 
         LaunchedEffect(Unit) {
-            if (!hasPermissions()) launcher.launch(
-                arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
-            )
+            if (!hasPermissions(ctx)) {
+                val activity = ctx as Activity
+                val permissions = arrayOf(
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO
+                )
+
+                val shouldShowRationale = permissions.any {
+                    ActivityCompat.shouldShowRequestPermissionRationale(activity, it)
+                }
+
+                if (shouldShowRationale) {
+                    launcher.launch(permissions)
+                } else {
+                    // Se non si devono mostrare razionali, ma i permessi sono negati -> l’utente ha selezionato “Non chiedere più”
+                    // Mostra un messaggio e porta alle impostazioni
+                    Toast.makeText(
+                        ctx,
+                        ctx.getString(R.string.permissions),
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", ctx.packageName, null)
+                    }
+                    ctx.startActivity(intent)
+                }
+            }
         }
+
 
         val client = getUnsafeOkHttpClient()
 
@@ -303,7 +337,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
 
         val connectChecker = object : ConnectChecker {
             override fun onConnectionSuccess() {
-                Toast.makeText(ctx, "Streaming avviato!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, ctx.getString(R.string.streaming_launched), Toast.LENGTH_SHORT).show()
             }
 
             override fun onConnectionFailed(reason: String) {
@@ -352,6 +386,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             Button(
                 onClick = {
                     if (!isStreaming) {
+
                         // Configurazione per landscape
                         val streamWidth = 1280  // o una dimensione adatta al landscape
                         val streamHeight = 720
@@ -386,20 +421,20 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
             ) {
-                Text(if (isStreaming) "Ferma streaming" else "Avvia streaming")
+                Text(if (isStreaming) stringResource(R.string.stop_stream) else stringResource(R.string.launch_stream))
             }
         }
     }
 
     /* ------------------ PERMESSI ------------------ */
-    private fun hasPermissions() = arrayOf(
+    private fun hasPermissions(ctx: Context) = arrayOf(
         Manifest.permission.CAMERA,
         Manifest.permission.RECORD_AUDIO
-    ).all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
+    ).all { ContextCompat.checkSelfPermission(ctx, it) == PackageManager.PERMISSION_GRANTED }
 
     /* ------------------ CONNECT CHECKER ------------------ */
     override fun onConnectionSuccess() =
-        runOnUiThread { Toast.makeText(this, "Streaming avviato!", Toast.LENGTH_SHORT).show() }
+        runOnUiThread { Toast.makeText(this, this.getString(R.string.streaming_launched), Toast.LENGTH_SHORT).show() }
 
     override fun onConnectionFailed(reason: String) =
         runOnUiThread {

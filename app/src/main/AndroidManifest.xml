@@ -9,6 +9,12 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- Rimozione forzata di permessi non voluti -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+
+
     <application
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
@@ -20,12 +26,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication"
         tools:targetApi="31">
+
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-2622126149242920~7887769234" />
+
         <activity
             android:name=".StreamActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false" />
         <activity android:name=".CreateMatchActivity" />
         <activity android:name=".MatchOptionsActivity" />
+        <activity android:name=".InfoActivity" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,7 +57,7 @@
                 <data
                     android:scheme="spikestream"
                     android:host="spikestream.tooolky.com"
-                    android:pathPrefix="/auth/google/redirect" />
+                    android:pathPrefix="/" />
             </intent-filter>
         </activity>
     </application>
