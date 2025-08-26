@@ -38,6 +38,7 @@
         <activity android:name=".CreateMatchActivity" />
         <activity android:name=".MatchOptionsActivity" />
         <activity android:name=".InfoActivity" />
+        <activity android:name=".SettingsActivity" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

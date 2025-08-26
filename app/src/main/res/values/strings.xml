@@ -105,5 +105,12 @@
     - "Start streaming" to begin the broadcast.
     - "Generate Invite Link" to create a link to share with the person who will update the score (preferably just one person).</string>
 
+    <string name="delete_account">Delete account</string>
+    <string name="deleting">Deleting...</string>
+    <string name="confirm_deletion">Confirm deletion</string>
+    <string name="delete_confirmation_text">Are you sure you want to delete your account? This action cannot be undone.</string>
+    <string name="cancel">Cancel</string>
+    <string name="account_deleted_success">Account successfully deleted</string>
+
 
 </resources>

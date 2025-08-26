@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -530,15 +532,27 @@ fun DashboardScreen(
         ) {
             Text("Dashboard", style = MaterialTheme.typography.headlineMedium)
 
-            Button(
-                onClick = {
-                    // Azione di logout qui
-                    onTokenExpired() // oppure puoi passare una lambda come parametro
+            Row {
+                // Icona Settings
+                IconButton(
+                    onClick = {
+                        val intent = Intent(context, SettingsActivity::class.java)
+                        context.startActivity(intent)
+                    }
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings")
                 }
-            ) {
-                Text(stringResource(R.string.logout))
+
+
+                // Bottone Logout
+                Button(
+                    onClick = { onTokenExpired() }
+                ) {
+                    Text(stringResource(R.string.logout))
+                }
             }
         }
+
 
         Spacer(Modifier.height(12.dp))
 
