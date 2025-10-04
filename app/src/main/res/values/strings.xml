@@ -27,7 +27,7 @@
     <string name="create_match_title">Configure Streaming</string>
     <string name="guide_button_hide">❌ Hide streaming guide</string>
     <string name="guide_button_show">ℹ️ Show streaming guide</string>
-    <string name="guide_title">How to set up streaming on YouTube, Twitch or Instagram:</string>
+    <string name="guide_title">How to set up streaming on YouTube or Twitch:</string>
     <string name="guide_body">
     <![CDATA[
     📺 <b>YouTube</b>:

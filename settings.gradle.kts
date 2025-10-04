@@ -20,6 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
+
 rootProject.name = "Spike stream"
 include(":app")
  

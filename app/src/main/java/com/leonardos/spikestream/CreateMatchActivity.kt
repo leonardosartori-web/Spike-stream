@@ -51,7 +51,6 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
-import getUnsafeOkHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -233,7 +232,7 @@ class CreateMatchActivity: ComponentActivity() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = !isLoading && team1.isNotBlank() && team2.isNotBlank() && streamUrl.startsWith("rtmp://")
+                enabled = !isLoading && team1.isNotBlank() && team2.isNotBlank() && (streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://"))
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
@@ -260,8 +259,9 @@ class CreateMatchActivity: ComponentActivity() {
                 Toast.makeText(this, this.getString(R.string.create_match_error2), Toast.LENGTH_SHORT).show()
                 false
             }
-            !streamUrl.startsWith("rtmp://") -> {
-                Toast.makeText(this, this.getString(R.string.create_match_error3), Toast.LENGTH_SHORT).show()
+            !(streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://")) -> {
+                // Questo controlla entrambi i protocolli
+                Toast.makeText(this, getString(R.string.create_match_error3), Toast.LENGTH_SHORT).show()
                 false
             }
             else -> true

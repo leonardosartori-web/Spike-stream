@@ -1,3 +1,5 @@
+package com.leonardos.spikestream
+
 import okhttp3.OkHttpClient
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
