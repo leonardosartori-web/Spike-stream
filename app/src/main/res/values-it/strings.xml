@@ -112,5 +112,5 @@
     <string name="cancel">Annulla</string>
     <string name="account_deleted_success">Account eliminato con successo</string>
 
-
+    <string name="wifi_warning">⚠️ È consigliato connettersi al Wi-Fi per una diretta più stabile</string>
 </resources>

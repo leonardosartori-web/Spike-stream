@@ -2,8 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    //id("com.google.dagger.hilt.android") version "2.48"
-    //kotlin("kapt")
 }
 
 
@@ -15,7 +13,7 @@ android {
         applicationId = "com.leonardos.spikestream"
         minSdk = 24
         targetSdk = 36
-        versionCode = 17
+        versionCode = 19
         versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -45,15 +43,11 @@ android {
 
 dependencies {
 
-    //implementation("com.github.NodeMedia:NodeMediaClient-Android:3.2.9")
-    //implementation("com.github.pedroSG94.RootEncoder:library:2.6.1")
     implementation("com.github.pedroSG94.rtmp-rtsp-stream-client-java:rtplibrary:2.2.6")
-    //implementation("com.github.pedroSG94.RootEncoder:extra-sources:2.6.1")
     implementation("io.socket:socket.io-client:2.0.1")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("org.json:json:20210307")
     implementation("com.google.accompanist:accompanist-swiperefresh:0.33.2-alpha")
-    //implementation("com.google.accompanist:accompanist-permissions:0.31.5-alpha")
     implementation("com.google.android.gms:play-services-ads:22.6.0")
     implementation("org.slf4j:slf4j-nop:2.0.9")
     implementation(libs.androidx.core.ktx)

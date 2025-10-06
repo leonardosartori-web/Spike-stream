@@ -7,9 +7,11 @@ import android.content.Intent
 import android.provider.Settings
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.media.EncoderProfiles.VideoProfile
 import android.media.MediaRecorder.VideoEncoder
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
@@ -50,10 +52,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     private lateinit var rtmpCamera: RtmpCamera2
     private lateinit var openGlView: OpenGlView
     private var imageFilter: ImageObjectFilterRender? = null
-    private var wakeLock: PowerManager.WakeLock? = null
     private var oldBrightness: Float = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
 
-    private var bitrateMonitorJob: Job? = null
     private var isStreaming = false
 
     /** Parametri soft restart */
@@ -65,8 +65,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SpikeStream::StreamLock")
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val rtmpUrl = intent.getStringExtra("RTMP_URL")
             ?: "rtmps://live-api-s.facebook.com:443/rtmp/YOUR_STREAM_KEY"
@@ -115,48 +114,111 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     }
 
     /** 🔁 Monitor bitrate e soft restart */
-    private fun startBitrateMonitor(streamUrl: String, team1: String, team2: String, team1Pts: Int, team2Pts: Int, team1Sets: Int, team2Sets: Int) {
-        bitrateMonitorJob = CoroutineScope(Dispatchers.IO).launch {
-            while (isActive) {
-                delay(1500) // ogni 1,5 secondi
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
-                val (res, bitrate, type) = estimateNetworkQuality()
+    private fun startBitrateMonitorReactive(streamUrl: String) {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        var lastBitrate = currentBitrate
+        var lastWidth = currentWidth
+        var lastHeight = currentHeight
+
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                adjustBitrate(network)
+            }
+
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                adjustBitrate(network)
+            }
+
+            override fun onLost(network: Network) {
+                // opzionale: gestione perdita rete
+            }
+
+            private fun adjustBitrate(network: Network) {
+                if (!rtmpCamera.isStreaming) return
+
+                val caps = cm.getNetworkCapabilities(network)
+                val (res, bitrate, type) = when {
+                    caps == null -> Triple(480, 600 * 1024, "UNKNOWN")
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Triple(1280, 2_000 * 1024, "WIFI")
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Triple(854, 900 * 1024, "MOBILE")
+                    else -> Triple(480, 700 * 1024, "OTHER")
+                }
+
                 val width = if (res == 1280) 1280 else 854
                 val height = if (res == 1280) 720 else 480
 
-                if (!rtmpCamera.isStreaming) continue
-
                 runOnUiThread {
-                    if (bitrate < MIN_BITRATE) {
+                    if (bitrate < MIN_BITRATE && (lastWidth != 854 || lastHeight != 480)) {
                         // Soft restart a risoluzione più bassa
-                        if (currentWidth != 854 || currentHeight != 480) {
-                            rtmpCamera.stopStream()
-                            rtmpCamera.prepareVideo(
-                                854, 480, 25, 900 * 1024, 2, 0, VideoEncoder.H264, VideoProfile.HDR_NONE
-                            )
-                            rtmpCamera.prepareAudio(128 * 1024, 48000, true)
-                            rtmpCamera.startStream(streamUrl)
-                            currentWidth = 854
-                            currentHeight = 480
-                            currentBitrate = 900 * 1024
-                            Log.i("Stream", "🔻 Soft restart a 480p per rete lenta")
-                        }
-                    } else {
+                        rtmpCamera.stopStream()
+                        rtmpCamera.prepareVideo(
+                            854, 480, 25, 900 * 1024, 2, 0, VideoEncoder.H264, VideoProfile.HDR_NONE
+                        )
+                        rtmpCamera.prepareAudio(128 * 1024, 48000, true)
+                        rtmpCamera.startStream(streamUrl)
+
+                        currentWidth = 854
+                        currentHeight = 480
+                        currentBitrate = 900 * 1024
+
+                        lastWidth = 854
+                        lastHeight = 480
+                        lastBitrate = currentBitrate
+
+                        Log.i("Stream", "🔻 Soft restart a 480p per rete lenta")
+                    } else if (bitrate >= MIN_BITRATE && bitrate != lastBitrate) {
                         // Aggiorna solo bitrate
-                        if (currentBitrate != bitrate) {
-                            rtmpCamera.setVideoBitrateOnFly(bitrate)
-                            currentBitrate = bitrate
-                            Log.i("Stream", "📶 Bitrate adattato a ${bitrate / 1024} kbps su $type")
-                        }
+                        rtmpCamera.setVideoBitrateOnFly(bitrate)
+                        currentBitrate = bitrate
+                        lastBitrate = bitrate
+                        Log.i("Stream", "📶 Bitrate adattato a ${bitrate / 1024} kbps su $type")
                     }
                 }
             }
         }
+
+        cm.registerDefaultNetworkCallback(networkCallback!!)
     }
 
-    private fun stopBitrateMonitor() {
-        bitrateMonitorJob?.cancel()
+    private fun stopBitrateMonitorReactive() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback?.let { cm.unregisterNetworkCallback(it) }
     }
+
+
+    private var lastScoreHash: Int = 0
+    private var lastScoreBitmap: Bitmap? = null
+
+    private fun updateOverlayIfChanged(
+        width: Int,
+        height: Int,
+        team1Name: String,
+        team2Name: String,
+        team1Score: Int,
+        team2Score: Int,
+        team1Sets: Int,
+        team2Sets: Int
+    ) {
+        // Calcola hash basato solo sui valori reali
+        val hash = listOf(team1Score, team2Score, team1Sets, team2Sets).hashCode()
+
+        if (hash != lastScoreHash) {
+            lastScoreHash = hash
+
+            // Ricrea solo se cambia davvero il punteggio
+            val bmp = drawScoreBitmap(width, height, team1Name, team2Name, team1Score, team2Score, team1Sets, team2Sets)
+
+            // Pulisce bitmap precedente per non consumare memoria
+            lastScoreBitmap?.recycle()
+            lastScoreBitmap = bmp
+
+            imageFilter?.setImage(bmp)
+        }
+    }
+
 
     /** 🧱 UI */
     @Composable
@@ -248,7 +310,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             team1Sets = aSets
                             team2Sets = bSets
 
-                            Toast.makeText(ctx, "Score updated ${team1Pts} - ${team2Pts}", Toast.LENGTH_SHORT).show()
+                            //Toast.makeText(ctx, "Score updated ${team1Pts} - ${team2Pts}", Toast.LENGTH_SHORT).show()
 
                             // 🔄 Aggiorna overlay
                             val bitmap = drawScoreBitmap(currentWidth, 400, team1, team2, team1Pts, team2Pts, team1Sets, team2Sets)
@@ -280,19 +342,35 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         }
 
         // Controllo rete
-        LaunchedEffect(Unit) {
-            while (true) {
-                val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-                networkType = when {
-                    caps == null -> "UNKNOWN"
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WIFI"
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "MOBILE"
-                    else -> "OTHER"
+        DisposableEffect(Unit) {
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+            val networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    val caps = cm.getNetworkCapabilities(network)
+                    networkType = when {
+                        caps == null -> "UNKNOWN"
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WIFI"
+                        caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "MOBILE"
+                        else -> "OTHER"
+                    }
                 }
-                delay(2000)
+
+                override fun onLost(network: Network) {
+                    networkType = "DISCONNECTED"
+                }
+            }
+
+            // ✅ Registra il callback
+            cm.registerDefaultNetworkCallback(networkCallback)
+
+            // ✅ Cleanup automatico quando il composable viene distrutto
+            onDispose {
+                cm.unregisterNetworkCallback(networkCallback)
             }
         }
+
+
 
         // UI
         Box(Modifier.fillMaxSize()) {
@@ -327,32 +405,23 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
             // Overlay dinamico
             LaunchedEffect(team1Pts, team2Pts, team1Sets, team2Sets) {
-                imageFilter?.let { filter ->
-                    // Usa sempre le dimensioni correnti calcolate al momento dello start
-                    filter.setImage(
-                        drawScoreBitmap(
-                            currentWidth,
-                            currentHeight,
-                            team1Init,
-                            team2Init,
-                            team1Pts,
-                            team2Pts,
-                            team1Sets,
-                            team2Sets
-                        )
-                    )
-                    filter.setDefaultScale(currentWidth, currentHeight)
-                    filter.setPosition(TranslateTo.BOTTOM_LEFT)
-                    // Non fare rtmCamera.glInterface.addFilter(filter) di nuovo!
-                }
+                updateOverlayIfChanged(
+                    currentWidth,
+                    currentHeight,
+                    team1Init,
+                    team2Init,
+                    team1Pts,
+                    team2Pts,
+                    team1Sets,
+                    team2Sets
+                )
             }
-
 
 
 
             if (networkType == "MOBILE") {
                 Text(
-                    "⚠️ È consigliato connettersi al Wi-Fi per una diretta più stabile",
+                    stringResource(R.string.wifi_warning),
                     color = Color.Yellow,
                     modifier = Modifier.align(Alignment.TopCenter).padding(16.dp)
                 )
@@ -377,15 +446,13 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             rtmpCamera.glInterface.addFilter(imageFilter)
                             rtmpCamera.startStream(streamUrl)
                             isStreamingState = true
-                            startBitrateMonitor(streamUrl, team1, team2, team1Pts, team2Pts, team1Sets, team2Sets)
-                            wakeLock?.acquire()
-                            setScreenBrightness(0.03f)
+                            startBitrateMonitorReactive(streamUrl)
+                            setScreenBrightness(0.1f)
                         }
                     } else {
-                        stopBitrateMonitor()
+                        stopBitrateMonitorReactive()
                         rtmpCamera.stopStream()
                         isStreamingState = false
-                        if (wakeLock?.isHeld == true) wakeLock?.release()
                         restoreBrightness()
                     }
                 },
@@ -410,12 +477,11 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     /** 🧹 Lifecycle */
     override fun onStop() {
         super.onStop()
-        stopBitrateMonitor()
+        stopBitrateMonitorReactive()
         if (::rtmpCamera.isInitialized) {
             if (rtmpCamera.isStreaming) rtmpCamera.stopStream()
             if (rtmpCamera.isOnPreview) rtmpCamera.stopPreview()
         }
-        if (wakeLock?.isHeld == true) wakeLock?.release()
         restoreBrightness()
     }
 
@@ -424,11 +490,10 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     override fun onConnectionSuccessRtmp() { Log.i("Stream", "✅ Connessione RTMP stabilita") }
     override fun onConnectionFailedRtmp(reason: String) {
         Log.e("Stream", "❌ Connessione fallita: $reason")
+        stopBitrateMonitorReactive()
         runOnUiThread {
-            stopBitrateMonitor()
             rtmpCamera.stopStream()
             isStreaming = false
-            if (wakeLock?.isHeld == true) wakeLock?.release()
             restoreBrightness()
         }
     }

@@ -37,7 +37,6 @@
 
         <activity
             android:name=".StreamActivity"
-            android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize" />
         <activity android:name=".CreateMatchActivity" />
         <activity android:name=".MatchOptionsActivity" />
