@@ -44,7 +44,6 @@ import com.pedro.rtmp.utils.ConnectCheckerRtmp
 import com.pedro.rtplibrary.view.OpenGlView
 import io.socket.client.IO
 import io.socket.client.Socket
-import kotlinx.coroutines.*
 import org.json.JSONObject
 
 class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
