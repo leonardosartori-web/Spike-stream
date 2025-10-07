@@ -2,8 +2,10 @@ package com.leonardos.spikestream
 
 import android.Manifest
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.provider.Settings
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -14,6 +16,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -44,6 +47,8 @@ import com.pedro.rtmp.utils.ConnectCheckerRtmp
 import com.pedro.rtplibrary.view.OpenGlView
 import io.socket.client.IO
 import io.socket.client.Socket
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.callbackFlow
 import org.json.JSONObject
 
 class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
@@ -61,6 +66,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     private var currentHeight = 480
     private var currentBitrate = 900 * 1024
 
+    private lateinit var tokenManager: TokenManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -76,6 +83,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         val team1Sets = intent.getIntExtra("TEAM1_SETS", 0)
         val team2Sets = intent.getIntExtra("TEAM2_SETS", 0)
         val id_match = intent.getStringExtra("MATCH_ID") ?: ""
+
+        tokenManager = TokenManager(applicationContext)
 
         setContent {
             StreamingScreen(team1, team2, team1Pts, team2Pts, team1Sets, team2Sets, rtmpUrl, id_match)
@@ -285,7 +294,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         }
         val socket = remember { IO.socket("https://spikestream.tooolky.com", opts) }
 
-        LaunchedEffect(Unit) {
+        DisposableEffect(Unit) {
             socket.on("score_update") { args ->
                 if (args.isNotEmpty() && args[0] is JSONObject) {
                     val data = args[0] as JSONObject
@@ -336,6 +345,60 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             try { socket.connect() } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(ctx, "Connection: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            onDispose {
+                if (socket.connected()) {
+                    socket.disconnect()
+                    socket.off()
+                }
+            }
+        }
+
+        val tokenState = remember { mutableStateOf<String?>(null) }
+        val coroutineScope = rememberCoroutineScope()
+
+        LaunchedEffect(Unit) {
+            tokenManager.tokenFlow.collect { token ->
+                tokenState.value = token
+            }
+        }
+
+        // 🔋 Monitoraggio livello batteria e invio via socket con JWT
+        LaunchedEffect(tokenState.value) {
+            val token = tokenState.value ?: return@LaunchedEffect
+            var hasNotified = false
+
+            val batteryFlow = callbackFlow<Int> {
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: return
+                        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+                        val batteryPct = level * 100 / scale
+                        trySend(batteryPct)
+                    }
+                }
+                ctx.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                awaitClose { ctx.unregisterReceiver(receiver) }
+            }
+
+            batteryFlow.collect { batteryPct ->
+                when {
+                    batteryPct < 20 && !hasNotified -> {
+                        val msg = JSONObject().apply {
+                            put("matchId", matchId)
+                            put("battery", batteryPct)
+                            put("token", token)
+                        }
+                        socket.emit("low_battery", msg)
+                        //Log.i("BatteryMonitor", "⚠️ Low battery sent: $batteryPct% with token")
+                        hasNotified = true
+                    }
+                    batteryPct >= 20 && hasNotified -> {
+                        hasNotified = false
+                        //Log.i("BatteryMonitor", "🔋 Battery level restored: $batteryPct%")
+                    }
                 }
             }
         }
