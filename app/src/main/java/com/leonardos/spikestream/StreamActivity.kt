@@ -22,12 +22,15 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -62,11 +65,14 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
     /** Parametri soft restart */
     private val MIN_BITRATE = 400 * 1024 // 400 kbps soglia minima
-    private var currentWidth = 480
+    private var currentWidth = 854
     private var currentHeight = 480
     private var currentBitrate = 900 * 1024
 
     private lateinit var tokenManager: TokenManager
+
+    private lateinit var scoreRenderer: ScoreOverlayRenderer
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +91,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         val id_match = intent.getStringExtra("MATCH_ID") ?: ""
 
         tokenManager = TokenManager(applicationContext)
+
+        scoreRenderer = ScoreOverlayRenderer(team1, team2)
 
         setContent {
             StreamingScreen(team1, team2, team1Pts, team2Pts, team1Sets, team2Sets, rtmpUrl, id_match)
@@ -131,6 +139,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         var lastWidth = currentWidth
         var lastHeight = currentHeight
 
+        var lastAdjustTime = 0L
+
         networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 adjustBitrate(network)
@@ -146,6 +156,9 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
             private fun adjustBitrate(network: Network) {
                 if (!rtmpCamera.isStreaming) return
+
+                val now = System.currentTimeMillis()
+                if (now - lastAdjustTime < 5000) return
 
                 val caps = cm.getNetworkCapabilities(network)
                 val (res, bitrate, type) = when {
@@ -203,29 +216,27 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     private fun updateOverlayIfChanged(
         width: Int,
         height: Int,
-        team1Name: String,
-        team2Name: String,
         team1Score: Int,
         team2Score: Int,
         team1Sets: Int,
         team2Sets: Int
     ) {
-        // Calcola hash basato solo sui valori reali
         val hash = listOf(team1Score, team2Score, team1Sets, team2Sets).hashCode()
 
         if (hash != lastScoreHash) {
             lastScoreHash = hash
 
-            // Ricrea solo se cambia davvero il punteggio
-            val bmp = drawScoreBitmap(width, height, team1Name, team2Name, team1Score, team2Score, team1Sets, team2Sets)
+            // Bitmap più piccola per ridurre lavoro GPU
+            val bmp = scoreRenderer.render(width, height, team1Score, team2Score, team1Sets, team2Sets)
 
-            // Pulisce bitmap precedente per non consumare memoria
             lastScoreBitmap?.recycle()
             lastScoreBitmap = bmp
 
+            // Aggiorna solo l’immagine del filtro, non ricreare filtro
             imageFilter?.setImage(bmp)
         }
     }
+
 
 
     /** 🧱 UI */
@@ -320,9 +331,6 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
                             //Toast.makeText(ctx, "Score updated ${team1Pts} - ${team2Pts}", Toast.LENGTH_SHORT).show()
 
-                            // 🔄 Aggiorna overlay
-                            val bitmap = drawScoreBitmap(currentWidth, 400, team1, team2, team1Pts, team2Pts, team1Sets, team2Sets)
-                            imageFilter?.setImage(bitmap)
                         }
                     }
                 }
@@ -385,7 +393,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
             batteryFlow.collect { batteryPct ->
                 when {
-                    batteryPct < 20 && !hasNotified -> {
+                    batteryPct <= 30 && !hasNotified -> {
                         val msg = JSONObject().apply {
                             put("matchId", matchId)
                             put("battery", batteryPct)
@@ -395,7 +403,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                         //Log.i("BatteryMonitor", "⚠️ Low battery sent: $batteryPct% with token")
                         hasNotified = true
                     }
-                    batteryPct >= 20 && hasNotified -> {
+                    batteryPct > 30 && hasNotified -> {
                         hasNotified = false
                         //Log.i("BatteryMonitor", "🔋 Battery level restored: $batteryPct%")
                     }
@@ -432,8 +440,6 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             }
         }
 
-
-
         // UI
         Box(Modifier.fillMaxSize()) {
             AndroidView(
@@ -446,15 +452,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                         val height = openGlView.height.takeIf { it > 0 } ?: 720
 
                         imageFilter = ImageObjectFilterRender().apply {
-                            setImage(
-                                drawScoreBitmap(
-                                    width, height / 2,
-                                    team1Init, team2Init,
-                                    team1Pts, team2Pts,
-                                    team1Sets, team2Sets
-                                )
-                            )
-                            setDefaultScale(width, height)
+                            setImage(scoreRenderer.render(currentWidth, currentHeight, team1Pts, team2Pts, team1Sets, team2Sets))
+                            setDefaultScale(currentWidth, currentHeight)
                             setPosition(TranslateTo.BOTTOM_LEFT)
                         }
                         rtmpCamera.glInterface.addFilter(imageFilter)
@@ -462,7 +461,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                     }
                     openGlView
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = if (isStreamingState) Modifier.size(1.dp) else Modifier.fillMaxSize()
             )
 
             // Overlay dinamico
@@ -470,8 +469,6 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 updateOverlayIfChanged(
                     currentWidth,
                     currentHeight,
-                    team1Init,
-                    team2Init,
                     team1Pts,
                     team2Pts,
                     team1Sets,
@@ -480,6 +477,30 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             }
 
 
+            if (isStreamingState) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.streaming_launched),
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleLarge,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp)) // piccolo spazio tra le righe
+                        Text(
+                            text = stringResource(R.string.streaming_warning),
+                            color = Color.Yellow,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
 
             if (networkType == "MOBILE") {
                 Text(
@@ -501,7 +522,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             rtmpCamera.prepareAudio(128 * 1024, 48000, true)
                         ) {
                             imageFilter = ImageObjectFilterRender().apply {
-                                setImage(drawScoreBitmap(currentWidth, currentHeight, team1, team2, team1Pts, team2Pts, team1Sets, team2Sets))
+                                setImage(scoreRenderer.render(currentWidth, currentHeight, team1Pts, team2Pts, team1Sets, team2Sets))
                                 setDefaultScale(currentWidth, currentHeight)
                                 setPosition(TranslateTo.BOTTOM_LEFT)
                             }
@@ -509,7 +530,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             rtmpCamera.startStream(streamUrl)
                             isStreamingState = true
                             startBitrateMonitorReactive(streamUrl)
-                            setScreenBrightness(0.1f)
+                            setScreenBrightness(0.02f)
                         }
                     } else {
                         stopBitrateMonitorReactive()

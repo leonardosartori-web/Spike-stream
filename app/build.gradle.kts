@@ -13,7 +13,7 @@ android {
         applicationId = "com.leonardos.spikestream"
         minSdk = 24
         targetSdk = 36
-        versionCode = 20
+        versionCode = 22
         versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

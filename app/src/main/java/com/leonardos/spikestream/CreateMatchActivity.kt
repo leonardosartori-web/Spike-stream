@@ -221,6 +221,7 @@ class CreateMatchActivity: ComponentActivity() {
                                     }
                                     is CreateMatchResult.Error -> {
                                         Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                        isLoading = false
                                     }
                                 }
                             }

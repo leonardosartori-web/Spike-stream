@@ -113,4 +113,5 @@
     <string name="account_deleted_success">Account eliminato con successo</string>
 
     <string name="wifi_warning">⚠️ È consigliato connettersi al Wi-Fi per una diretta più stabile</string>
+    <string name="streaming_warning">Lo schermo è scuro per risparmiare batteria</string>
 </resources>
