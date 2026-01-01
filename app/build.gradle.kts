@@ -13,7 +13,7 @@ android {
         applicationId = "com.leonardos.spikestream"
         minSdk = 24
         targetSdk = 36
-        versionCode = 22
+        versionCode = 24
         versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+    implementation("androidx.compose.ui:ui-text-google-fonts:1.6.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

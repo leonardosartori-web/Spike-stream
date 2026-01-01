@@ -20,10 +20,7 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.util.Log
-import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -43,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.rtplibrary.rtmp.RtmpCamera2
@@ -92,10 +90,21 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
         tokenManager = TokenManager(applicationContext)
 
-        scoreRenderer = ScoreOverlayRenderer(team1, team2)
+        scoreRenderer = ScoreOverlayRenderer(team1, team2, applicationContext)
 
         setContent {
-            StreamingScreen(team1, team2, team1Pts, team2Pts, team1Sets, team2Sets, rtmpUrl, id_match)
+            MyApplicationTheme() {
+                StreamingScreen(
+                    team1,
+                    team2,
+                    team1Pts,
+                    team2Pts,
+                    team1Sets,
+                    team2Sets,
+                    rtmpUrl,
+                    id_match
+                )
+            }
         }
     }
 
@@ -541,8 +550,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isStreamingState) Color.Red else Color(0xFF00BFFF),
-                    contentColor = Color.White
+                    containerColor = if (isStreamingState) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
                 Text(if (isStreamingState) stringResource(R.string.stop_stream) else stringResource(R.string.launch_stream))
