@@ -308,11 +308,17 @@ class MainActivity : ComponentActivity() {
 suspend fun makeLoginRequest(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
     try {
         val client = getUnsafeOkHttpClient()
-        val basicAuth = "Basic " + Base64.encodeToString("$email:$password".toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        val jsonBody = JSONObject().apply {
+            put("email", email)
+            put("password", password)
+        }
+
+        val mediaType = MediaType.get("application/json; charset=utf-8")
+        val requestBody = RequestBody.create(mediaType, jsonBody.toString())
+
         val request = Request.Builder()
             .url("https://spikestream.tooolky.com/auth/login")
-            .addHeader("Authorization", basicAuth)
-            .get()
+            .post(requestBody)
             .build()
         val response = client.newCall(request).execute()
 
@@ -709,7 +715,8 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
             onValueChange = { email = it },
             label = { Text("Email") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(8.dp))
@@ -719,7 +726,8 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
             onValueChange = { password = it },
             label = { Text("Password") },
             singleLine = true,
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(16.dp))
