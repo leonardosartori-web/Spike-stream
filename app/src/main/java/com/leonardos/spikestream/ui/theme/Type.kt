@@ -52,7 +52,7 @@ val bodyFontFamily = FontFamily(
 
 val displayFontFamily = FontFamily(
     Font(
-        googleFont = GoogleFont("Inter"),
+        googleFont = GoogleFont("Outfit"),
         fontProvider = provider,
     )
 )

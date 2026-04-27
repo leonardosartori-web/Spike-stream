@@ -5,6 +5,8 @@ import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.text.HtmlCompat
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
+import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
+import com.leonardos.spikestream.ui.theme.SpikeStreamOutlinedButton
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
 
 
 class InfoActivity: ComponentActivity() {
@@ -48,15 +56,19 @@ class InfoActivity: ComponentActivity() {
     @Composable
     fun HowToUseScreen() {
         val scrollState = rememberScrollState()
+        val context = LocalContext.current
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(16.dp)
-        ) {
+        SpikeStreamScreen {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(16.dp)
+            ) {
             Text(
                 text = stringResource(id = R.string.how_to_title),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Bold
             )
 
@@ -64,12 +76,16 @@ class InfoActivity: ComponentActivity() {
 
             Text(
                 text = stringResource(id = R.string.app_purpose),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f)
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
                 text = stringResource(id = R.string.how_to_steps_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.SemiBold
             )
 
@@ -92,6 +108,75 @@ class InfoActivity: ComponentActivity() {
                 descriptionResId = R.string.step4_desc
             )
 
+            InfoSection(
+                title = stringResource(R.string.about_title),
+                descriptionResId = R.string.about_desc
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Buy Me a Coffee Button
+                SpikeStreamPrimaryButton(
+                    text = stringResource(R.string.support_project),
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://buymeacoffee.com/spikestream"))
+                        context.startActivity(intent)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // PayPal alternative or Privacy Policy
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    TextButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("${Constants.BASE_URL}/privacy.html"))
+                        context.startActivity(intent)
+                    }) {
+                        Text(
+                            text = stringResource(R.string.privacy_policy),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                        )
+                    }
+                    
+                    Text(
+                        text = " • ",
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    )
+
+                    TextButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("${Constants.BASE_URL}/terms.html"))
+                        context.startActivity(intent)
+                    }) {
+                        Text(
+                            text = stringResource(R.string.terms_of_service),
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text(
+                    text = "v1.2 - Powered by Spikestream",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+            }
+        }
         }
     }
 
@@ -109,7 +194,10 @@ class InfoActivity: ComponentActivity() {
             Column {
                 Text(
                     text = title,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
 
                 AndroidView(
@@ -119,8 +207,10 @@ class InfoActivity: ComponentActivity() {
                                 context.getString(descriptionResId),
                                 HtmlCompat.FROM_HTML_MODE_LEGACY
                             )
+                             setTextColor(android.graphics.Color.parseColor("#0B1120")) // Midnight Navy
                             movementMethod = LinkMovementMethod.getInstance()
-                            setLinkTextColor(android.graphics.Color.BLUE)
+                            setLinkTextColor(android.graphics.Color.parseColor("#0077B6")) // Deep Star Cyan
+                            textSize = 16f
                         }
                     },
                     update = { view ->

@@ -33,33 +33,15 @@ class ScoreOverlayRenderer(
     private var rowHeight = 0f
     private var footerHeight = 0f
 
-    private val cornerRadius = 6f
-    private val padding = 6f
-    private val footerRatio = 0.6f
-    private val footerSpacing = 8f
+    private val cornerRadius = 12f // Smoother corners
+    private val padding = 12f
+    private val footerRatio = 0.5f
+    private val footerSpacing = 10f
 
     // 🎨 Paint
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+        color = Color.argb(240, 255, 255, 255) // White background
     }
-
-    /*private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textAlign = Paint.Align.CENTER
-    }
-
-    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(233, 30, 99)
-        typeface = Typeface.DEFAULT_BOLD
-        textAlign = Paint.Align.CENTER
-    }
-
-    private val watermarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.GRAY
-        textAlign = Paint.Align.RIGHT
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-    }*/
 
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.BLACK
@@ -67,21 +49,32 @@ class ScoreOverlayRenderer(
         typeface = interSemiBold
     }
 
+    private val ptsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textAlign = Paint.Align.CENTER
+        typeface = interBold
+    }
+
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(233, 30, 99)
+        color = Color.RED
         textAlign = Paint.Align.CENTER
         typeface = interBold
     }
 
     private val watermarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.GRAY
+        color = Color.argb(120, 0, 0, 0) // Black, semi-transparent
         textAlign = Paint.Align.RIGHT
         typeface = interSemiBold
     }
 
     private val separatorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.LTGRAY
-        strokeWidth = 1f
+        color = Color.argb(30, 0, 0, 0)
+        strokeWidth = 2f
+    }
+
+    private val servePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
+        style = Paint.Style.FILL
     }
 
     // 🔧 Ricalcolo dimensioni
@@ -91,23 +84,28 @@ class ScoreOverlayRenderer(
         lastWidth = width
         lastHeight = height
 
-        bitmapWidth = 400 * width / 1280
-        bitmapHeight = 150 * height / 720
+        val baseWidth = maxOf(width, height)
+        val baseHeight = minOf(width, height)
+
+        // 400x150 at 1280x720 base
+        bitmapWidth = 450 * baseWidth / 1280
+        bitmapHeight = 160 * baseHeight / 720
 
         rowHeight = bitmapHeight / (2f + footerRatio)
         footerHeight = rowHeight * footerRatio
-        columnWidth = bitmapWidth / 5f
+        columnWidth = bitmapWidth / 6f // Use 6 columns for better spacing (4 for names, 1 for pts, 1 for sets)
 
-        val maxWidth = 3f * columnWidth - 2 * padding
-        textPaint.textSize = 32f
+        val maxWidth = 4f * columnWidth - 2 * padding
+        textPaint.textSize = 34f
         while (
             (textPaint.measureText(team1).coerceAtLeast(textPaint.measureText(team2)))
-            > maxWidth && textPaint.textSize > 12f
+            > maxWidth && textPaint.textSize > 14f
         ) {
             textPaint.textSize -= 1f
         }
+        ptsPaint.textSize = textPaint.textSize + 6f
         highlightPaint.textSize = textPaint.textSize + 4f
-        watermarkPaint.textSize = footerHeight * 0.7f
+        watermarkPaint.textSize = footerHeight * 0.6f
     }
 
     // 🧠 Testo centrato verticalmente
@@ -127,11 +125,12 @@ class ScoreOverlayRenderer(
         team1Pts: Int,
         team2Pts: Int,
         team1Sets: Int,
-        team2Sets: Int
+        team2Sets: Int,
+        servingTeam: Int = 0 // 1 or 2, 0 for none
     ): Bitmap {
         recalcIfNeeded(width, height)
 
-        val bmp = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.RGB_565)
+        val bmp = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
         // Sfondo
@@ -140,29 +139,40 @@ class ScoreOverlayRenderer(
             cornerRadius, cornerRadius, backgroundPaint
         )
 
+        // 🏐 Punteggio Cell
         fun drawCell(
             text: String,
             colStart: Float,
             colSpan: Float,
             row: Float,
-            highlight: Boolean = false
+            paintToUse: Paint = textPaint
         ) {
-            val paint = if (highlight) highlightPaint else textPaint
             val cx = (colStart + colSpan / 2) * columnWidth
             val cy = row * rowHeight + rowHeight / 2
-            canvas.drawCenteredText(text, cx, cy, paint)
+            canvas.drawCenteredText(text, cx, cy, paintToUse)
         }
 
-        // 🏐 Punteggio
-        drawCell(team1, 0f, 3f, 0f)
-        drawCell(team2, 0f, 3f, 1f)
-        drawCell(team1Pts.toString(), 3f, 1f, 0f)
-        drawCell(team1Sets.toString(), 4f, 1f, 0f, team1Sets > team2Sets)
-        drawCell(team2Pts.toString(), 3f, 1f, 1f)
-        drawCell(team2Sets.toString(), 4f, 1f, 1f, team2Sets > team1Sets)
+        // Teams
+        drawCell(team1, 0f, 4f, 0f)
+        drawCell(team2, 0f, 4f, 1f)
+
+        // Serve indicator
+        if (servingTeam == 1) {
+            canvas.drawCircle(padding * 1.5f, rowHeight / 2, 8f, servePaint)
+        } else if (servingTeam == 2) {
+            canvas.drawCircle(padding * 1.5f, rowHeight + rowHeight / 2, 8f, servePaint)
+        }
+
+        // Pts
+        drawCell(team1Pts.toString(), 4f, 1f, 0f, ptsPaint)
+        drawCell(team2Pts.toString(), 4f, 1f, 1f, ptsPaint)
+
+        // Sets
+        drawCell(team1Sets.toString(), 5f, 1f, 0f, if (team1Sets > team2Sets) highlightPaint else textPaint)
+        drawCell(team2Sets.toString(), 5f, 1f, 1f, if (team2Sets > team1Sets) highlightPaint else textPaint)
 
         // ─── Separatore ───
-        val separatorY = rowHeight * 2f + footerSpacing / 2
+        val separatorY = rowHeight * 2f
         canvas.drawLine(
             padding,
             separatorY,
@@ -171,19 +181,15 @@ class ScoreOverlayRenderer(
             separatorPaint
         )
 
-        val footerTop = rowHeight * 2f + footerSpacing
-        val footerBottomPadding = 6f
-
-        val footerBaselineY =
-            footerTop + footerHeight - footerBottomPadding - watermarkPaint.descent()
-
+        val footerTop = rowHeight * 2f
+        val footerBaselineY = footerTop + (footerHeight + footerSpacing) / 2
+        
         canvas.drawText(
-            "Spikestream",
+            "Powered by SPIKESTREAM",
             bitmapWidth - padding,
-            footerBaselineY,
+            footerBaselineY - (watermarkPaint.ascent() + watermarkPaint.descent()) / 2,
             watermarkPaint
         )
-
 
         return bmp
     }

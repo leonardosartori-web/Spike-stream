@@ -1,14 +1,16 @@
 package com.leonardos.spikestream
 
+import com.leonardos.spikestream.BuildConfig
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,16 +47,31 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
+import com.leonardos.spikestream.ui.theme.SpikeStreamTextField
+import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
+import com.leonardos.spikestream.ui.theme.SpikeStreamSecondaryButton
+import com.leonardos.spikestream.ui.theme.SpikeStreamOutlinedButton
+import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.LoadAdError
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.UpdateAvailability
+import com.google.android.play.core.ktx.isImmediateUpdateAllowed
+import java.util.concurrent.atomic.AtomicBoolean
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.ump.ConsentInformation
+import com.google.android.ump.ConsentRequestParameters
+import com.google.android.ump.UserMessagingPlatform
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -71,6 +88,10 @@ private val Context.dataStore by preferencesDataStore(name = "user_prefs")
 class TokenManager(private val context: Context) {
     companion object {
         val TOKEN_KEY = stringPreferencesKey("auth_token")
+        // Regex that validates the three-part Base64url JWT structure
+        private val JWT_REGEX = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
+
+        fun isValidJwt(token: String): Boolean = JWT_REGEX.matches(token)
     }
 
     val tokenFlow: Flow<String?> = context.dataStore.data.map { prefs ->
@@ -92,7 +113,7 @@ class TokenManager(private val context: Context) {
 
 sealed class GamesResult {
     data class Success(val games: List<JSONObject>) : GamesResult()
-    data class Error(val message: String) : GamesResult()
+    data class Error(val message: String, val isAuthError: Boolean = false) : GamesResult()
 }
 
 sealed class AuthResult {
@@ -113,14 +134,20 @@ data class StreamInfo(
 
 class MainActivity : ComponentActivity() {
 
+    private var isMobileAdsInitializeCalled = AtomicBoolean(false)
+    private lateinit var consentInformation: ConsentInformation
     private lateinit var tokenManager: TokenManager
     private var latestIntentData: Uri? = null
+    private lateinit var appUpdateManager: AppUpdateManager
+    private val updateRequestCode = 123
     lateinit var rewardedAd: RewardedAd
     var isRewardedAdLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        MobileAds.initialize(this) {}
+
+        appUpdateManager = AppUpdateManagerFactory.create(this)
+        checkForUpdates()
 
         setContent {
             MyApplicationTheme {
@@ -139,18 +166,87 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 👇 Carica e mostra l'annuncio all'avvio
+        // GDPR Consent Flow Initialization
+        val params = ConsentRequestParameters.Builder()
+            .setTagForUnderAgeOfConsent(false)
+            .build()
+        consentInformation = UserMessagingPlatform.getConsentInformation(this)
+        consentInformation.requestConsentInfoUpdate(
+            this,
+            params,
+            {
+                UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) { loadAndShowError ->
+                    if (loadAndShowError != null) {
+                        Log.w("AdMob", "Consent form error: ${loadAndShowError.message}")
+                    }
+                    if (consentInformation.canRequestAds()) {
+                        initializeMobileAdsSdk()
+                    } else {
+                        startCompose()
+                    }
+                }
+            },
+            { requestError ->
+                Log.w("AdMob", "Consent info update failed: ${requestError.message}")
+                if (consentInformation.canRequestAds()) {
+                    initializeMobileAdsSdk()
+                } else {
+                    startCompose()
+                }
+            }
+        )
+
+        // Fallback or early start if already consented
+        if (consentInformation.canRequestAds()) {
+            initializeMobileAdsSdk()
+        }
+
+        fetchRemoteBaseUrl()
+    }
+
+    private fun fetchRemoteBaseUrl() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val client = getHttpClient()
+                // Primary: your server. Secondary: a fallback like GitHub Gist.
+                val request = Request.Builder()
+                    .url("${Constants.REMOTE_CONFIG_URL}")
+                    .build()
+
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val newUrl = response.body()?.string()?.trim()
+                    if (!newUrl.isNullOrBlank() && newUrl.startsWith("http")) {
+                        Constants.BASE_URL = newUrl
+                        Log.i("Config", "Remote BASE_URL updated: $newUrl")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("Config", "Remote config fetch failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun initializeMobileAdsSdk() {
+        if (isMobileAdsInitializeCalled.getAndSet(true)) return
+        MobileAds.initialize(this) { }
+        loadAppOpenAd()
+        loadRewardedAd()
+    }
+
+    private fun loadAppOpenAd() {
+        // Load and show the App Open ad once at startup
         val adRequest = AdRequest.Builder().build()
         AppOpenAd.load(
             this,
-            "ca-app-pub-2622126149242920/3023467125", // 👈 ID di test (sostituisci con il tuo)
+            BuildConfig.ADMOB_APP_OPEN_ID,
             adRequest,
             AppOpenAd.APP_OPEN_AD_ORIENTATION_PORTRAIT,
             object : AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: AppOpenAd) {
                     ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdDismissedFullScreenContent() {
-                            // Quando l'annuncio finisce, mostra l'app
+                            // After ad, show the content
                             startCompose()
                         }
 
@@ -158,25 +254,46 @@ class MainActivity : ComponentActivity() {
                             startCompose()
                         }
                     }
-
                     ad.show(this@MainActivity)
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    // Se fallisce, continua subito
+                    // Fallback to app content
                     startCompose()
                 }
             }
         )
-
-        loadRewardedAd()
-
-
     }
 
     override fun onResume() {
         super.onResume()
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    AppUpdateType.IMMEDIATE,
+                    this,
+                    updateRequestCode
+                )
+            }
+        }
         loadRewardedAd() // ricarica sempre
+    }
+
+    private fun checkForUpdates() {
+        val appUpdateInfoTask = appUpdateManager.appUpdateInfo
+        appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
+                appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
+            ) {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    AppUpdateType.IMMEDIATE,
+                    this,
+                    updateRequestCode
+                )
+            }
+        }
     }
 
 
@@ -184,7 +301,7 @@ class MainActivity : ComponentActivity() {
         val adRequest = AdRequest.Builder().build()
         RewardedAd.load(
             this,
-            "ca-app-pub-2622126149242920/6851117213", // <-- tuo ID rewarded
+            BuildConfig.ADMOB_REWARDED_ID,
             adRequest,
             object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
@@ -224,15 +341,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // ✅ Se arriva il token dal deep link, salvalo e aggiorna il tokenState
+                // ✅ Deep-link token: validate JWT format before saving
                 LaunchedEffect(latestIntentData) {
                     val jwt = latestIntentData?.getQueryParameter("token")
                     if (!jwt.isNullOrBlank()) {
-                        coroutineScope.launch {
-                            tokenManager.saveToken(jwt)
-                            tokenState.value = jwt
-                            latestIntentData = null // pulisci il dato dopo l'uso
+                        if (TokenManager.isValidJwt(jwt)) {
+                            coroutineScope.launch {
+                                tokenManager.saveToken(jwt)
+                                tokenState.value = jwt
+                            }
+                        } else {
+                            Log.w("Auth", "Deep-link token failed JWT format validation — ignoring")
                         }
+                        latestIntentData = null // always clear after processing
                     }
                 }
 
@@ -259,14 +380,14 @@ class MainActivity : ComponentActivity() {
                             onGoogleLoginClick = {
                                 val intent = Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://spikestream.tooolky.com/auth/google")
+                                    Uri.parse("${Constants.BASE_URL}/auth/google")
                                 )
                                 startActivity(intent)
                             },
                             onForgotPasswordClick = {
                                 val intent = Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://spikestream.tooolky.com/auth/reset-password")
+                                    Uri.parse("${Constants.BASE_URL}/auth/reset-password")
                                 )
                                 startActivity(intent)
                             }
@@ -307,7 +428,7 @@ class MainActivity : ComponentActivity() {
 
 suspend fun makeLoginRequest(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
     try {
-        val client = getUnsafeOkHttpClient()
+        val client = getHttpClient()
         val jsonBody = JSONObject().apply {
             put("email", email)
             put("password", password)
@@ -317,7 +438,7 @@ suspend fun makeLoginRequest(email: String, password: String): AuthResult = with
         val requestBody = RequestBody.create(mediaType, jsonBody.toString())
 
         val request = Request.Builder()
-            .url("https://spikestream.tooolky.com/auth/login")
+            .url("${Constants.BASE_URL}/auth/login")
             .post(requestBody)
             .build()
         val response = client.newCall(request).execute()
@@ -331,7 +452,8 @@ suspend fun makeLoginRequest(email: String, password: String): AuthResult = with
             AuthResult.Error("Credenziali errate. Riprova o scegli un altro metodo")
         }
     } catch (e: Exception) {
-        AuthResult.Error("Errore: ${e.javaClass.simpleName} - ${e.message ?: "Nessun dettaglio"}")
+        Log.e("Auth", "Login request failed", e)
+        AuthResult.Error("Connessione non riuscita. Controlla la rete e riprova.")
     }
 }
 
@@ -347,118 +469,158 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit, o
 
     val scope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(stringResource(R.string.login_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
+    SpikeStreamScreen {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "🏐 SPIKESTREAM",
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
 
-        Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.login_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+                modifier = Modifier.padding(bottom = 32.dp)
+            )
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth()
-        )
+            // Email Field with modern styling
+            SpikeStreamTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            )
 
-        Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
+            SpikeStreamTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Password",
+                visualTransformation = PasswordVisualTransformation()
+            )
 
-        Spacer(Modifier.height(16.dp))
-
-        if (errorMessage != null) {
-            Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(8.dp))
-        }
 
-        Button(
-            onClick = {
-                isLoading = true
-                errorMessage = null
+            // Error Message
+            if (errorMessage != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
 
-                scope.launch {
-                    when (val result = makeLoginRequest(email, password)) {
-                        is AuthResult.Success -> {
-                            isLoading = false
-                            onLoginSuccess(result.token)
-                        }
-                        is AuthResult.Error -> {
-                            isLoading = false
-                            errorMessage = "Errore: ${result.message}"
+            Spacer(Modifier.height(16.dp))
+
+            // Login Button with gradient
+            SpikeStreamPrimaryButton(
+                text = stringResource(R.string.login_title),
+                isLoading = isLoading,
+                onClick = {
+                    isLoading = true
+                    errorMessage = null
+
+                    scope.launch {
+                        when (val result = makeLoginRequest(email, password)) {
+                            is AuthResult.Success -> {
+                                isLoading = false
+                                onLoginSuccess(result.token)
+                            }
+                            is AuthResult.Error -> {
+                                isLoading = false
+                                errorMessage = "Errore: ${result.message}"
+                            }
                         }
                     }
                 }
+            )
 
-            },
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                Text(stringResource(R.string.login_title))
+            Spacer(Modifier.height(16.dp))
+
+            // Google Login Button
+            SpikeStreamOutlinedButton(
+                text = stringResource(R.string.login_google),
+                onClick = { onGoogleLoginClick() }
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            // Bottom Links centered and stacked
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                TextButton(
+                    onClick = onRegisterClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(R.string.login_register),
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                TextButton(
+                    onClick = onForgotPasswordClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(R.string.login_password_forgot),
+                        color = MaterialTheme.colorScheme.secondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                TextButton(
+                    onClick = {
+                        context.startActivity(Intent(context, InfoActivity::class.java))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Info app",
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
             }
         }
-
-        Spacer(Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                onGoogleLoginClick() // ✅ usa la callback
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.login_google))
-        }
-
-
-        Spacer(Modifier.height(8.dp))
-
-        TextButton(onClick = onRegisterClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text(stringResource(R.string.login_register))
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        TextButton(onClick = onForgotPasswordClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text(stringResource(R.string.login_password_forgot))
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        TextButton(
-            onClick = {
-                context.startActivity(Intent(context, InfoActivity::class.java))
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text("Info app")
-        }
     }
-}
+
 
 suspend fun makeGetGamesRequest(token: String): GamesResult = withContext(Dispatchers.IO) {
     try {
-        val client = getUnsafeOkHttpClient()
+        val client = getHttpClient()
         val request = Request.Builder()
-            .url("https://spikestream.tooolky.com/games")
+            .url("${Constants.BASE_URL}/games")
             .addHeader("Authorization", "Bearer $token")
             .get()
             .build()
@@ -474,11 +636,15 @@ suspend fun makeGetGamesRequest(token: String): GamesResult = withContext(Dispat
             }
             GamesResult.Success(games)
         } else {
-            GamesResult.Error("HTTP ${response.code()}: ${body}")
+            // Log server details internally; don't expose HTTP codes/body to UI
+            val code = response.code()
+            Log.w("Games", "Get games failed: HTTP $code")
+            GamesResult.Error("Sessione scaduta. Accedi di nuovo.", isAuthError = code == 401)
         }
-        
+
     } catch (e: Exception) {
-        GamesResult.Error("Eccezione: ${e.localizedMessage}")
+        Log.e("Games", "Get games request failed", e)
+        GamesResult.Error("Connessione non riuscita. Controlla la rete e riprova.")
     }
 }
 
@@ -512,7 +678,12 @@ fun DashboardScreen(
                     streams.addAll(streamInfos)
                 }
                 is GamesResult.Error -> {
-                    onTokenExpired()
+                    isRefreshing.value = false
+                    if (result.isAuthError) {
+                        onTokenExpired()
+                    } else {
+                        Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             isRefreshing.value = false
@@ -523,147 +694,201 @@ fun DashboardScreen(
         loadStreams()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    SpikeStreamScreen {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            Text("Dashboard", style = MaterialTheme.typography.headlineMedium)
-
-            Row {
-                // Icona Settings
-                IconButton(
-                    onClick = {
-                        val intent = Intent(context, SettingsActivity::class.java)
-                        context.startActivity(intent)
-                    }
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "🏐 Dashboard",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                    Text(
+                        text = "Your volleyball matches",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    )
                 }
 
+                Row {
+                    IconButton(
+                        onClick = {
+                            val intent = Intent(context, SettingsActivity::class.java)
+                            context.startActivity(intent)
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
 
-                // Bottone Logout
-                Button(
-                    onClick = { onTokenExpired() }
-                ) {
-                    Text(stringResource(R.string.logout))
+                    SpikeStreamDangerButton(
+                        text = stringResource(R.string.logout),
+                        onClick = { onTokenExpired() },
+                        outlined = true,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
                 }
             }
-        }
 
+            Spacer(Modifier.height(16.dp))
 
-        Spacer(Modifier.height(12.dp))
-
-        SwipeRefresh(
-            state = rememberSwipeRefreshState(isRefreshing.value),
-            onRefresh = { loadStreams() },
-            modifier = Modifier.weight(1f)
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                if (streams.isNotEmpty()) {
-                    items(streams) { stream ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            elevation = CardDefaults.cardElevation(4.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(stream.title)
-
-                                Spacer(Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+            // Match List
+            SwipeRefresh(
+                state = rememberSwipeRefreshState(isRefreshing.value),
+                onRefresh = { loadStreams() },
+                modifier = Modifier.weight(1f)
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (streams.isNotEmpty()) {
+                        items(streams) { stream ->
+                            // Modern Match Card
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(8.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
                                 ) {
-                                    Button(onClick = {
-                                        val intent = Intent(context, MatchOptionsActivity::class.java).apply {
-                                            putExtra("RTMP_URL", stream.rtmpUrl)
-                                            putExtra("TEAM_1", stream.teamA)
-                                            putExtra("TEAM_2", stream.teamB)
-                                            putExtra("MATCH_ID", stream.matchId)
-                                        }
-                                        context.startActivity(intent)
-                                    }) {
-                                        Text(stringResource(R.string.open))
-                                    }
-
-                                    Button(
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                        onClick = {
-                                            scope.launch {
-                                                val success = makeDeleteMatch(token, stream.matchId)
-                                                if (success) {
-                                                    streams.remove(stream)
-                                                } else {
-                                                    Toast.makeText(context, context.getString(R.string.deletion_error), Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                        }
+                                    // Match Title
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Start,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            stringResource(R.string.delete),
-                                            color = MaterialTheme.colorScheme.onError
+                                            text = stream.title,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(16.dp))
+
+                                    // Action Buttons
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        SpikeStreamPrimaryButton(
+                                            text = stringResource(R.string.open),
+                                            onClick = {
+                                                val intent = Intent(context, MatchOptionsActivity::class.java).apply {
+                                                    putExtra("RTMP_URL", stream.rtmpUrl)
+                                                    putExtra("TEAM_1", stream.teamA)
+                                                    putExtra("TEAM_2", stream.teamB)
+                                                    putExtra("MATCH_ID", stream.matchId)
+                                                }
+                                                context.startActivity(intent)
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        SpikeStreamDangerButton(
+                                            text = stringResource(R.string.delete),
+                                            onClick = {
+                                                scope.launch {
+                                                    val success = makeDeleteMatch(token, stream.matchId)
+                                                    if (success) {
+                                                        streams.remove(stream)
+                                                    } else {
+                                                        Toast.makeText(context, context.getString(R.string.deletion_error), Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            outlined = true
                                         )
                                     }
                                 }
                             }
                         }
-                    }
-                } else {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(stringResource(R.string.no_match))
+                    } else {
+                        item {
+                            // Empty State
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "🏐",
+                                    style = MaterialTheme.typography.displayLarge
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    text = stringResource(R.string.no_match),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
 
-        Text(stringResource(R.string.no_match1))
+            // Helper Text
+            Text(
+                text = stringResource(R.string.no_match1),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
-        Spacer(Modifier.height(12.dp))
+            // Add Match Button
+            SpikeStreamPrimaryButton(
+                text = "➕ " + stringResource(R.string.add_match),
+                onClick = {
+                    if ((context as MainActivity).isRewardedAdLoaded) {
+                        (context as MainActivity).rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
+                            override fun onAdDismissedFullScreenContent() {
+                                (context as MainActivity).isRewardedAdLoaded = false
+                                onCreateStreamClick()
+                            }
 
-        Button(
-            onClick = {
-                if ((context as MainActivity).isRewardedAdLoaded) {
-                    (context as MainActivity).rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            (context as MainActivity).isRewardedAdLoaded = false
-                            onCreateStreamClick() // vai alla pagina dopo l’annuncio
+                            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                                onCreateStreamClick()
+                            }
                         }
 
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                            onCreateStreamClick()
+                        (context as MainActivity).rewardedAd.show(activity) {
+                            // onUserEarnedReward
                         }
+                    } else {
+                        onCreateStreamClick()
                     }
-
-                    (context as MainActivity).rewardedAd.show(activity) {
-                        // onUserEarnedReward
-                    }
-                } else {
-                    onCreateStreamClick()
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.add_match))
+            )
         }
     }
 }
@@ -673,9 +898,9 @@ fun DashboardScreen(
 suspend fun makeDeleteMatch(token: String, matchId: String): Boolean = withContext(
     Dispatchers.IO) {
     try {
-        val client = getUnsafeOkHttpClient()
+        val client = getHttpClient()
         val request = Request.Builder()
-            .url("https://spikestream.tooolky.com/games/$matchId")
+            .url("${Constants.BASE_URL}/games/$matchId")
             .addHeader("Authorization", "Bearer $token")
             .delete()
             .build()
@@ -684,6 +909,7 @@ suspend fun makeDeleteMatch(token: String, matchId: String): Boolean = withConte
         response.isSuccessful
 
     } catch (e: Exception) {
+        Log.e("Games", "Delete match failed", e)
         false
     }
 }
@@ -700,75 +926,91 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
 
     val successMsg = stringResource(R.string.register_success)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(stringResource(R.string.register_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
+    SpikeStreamScreen {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "🏐 SPIKESTREAM",
+                style = MaterialTheme.typography.displaySmall,
+                color = com.leonardos.spikestream.ui.theme.VolleyballOrange,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
 
-        Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.register_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                modifier = Modifier.padding(bottom = 32.dp)
+            )
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth()
-        )
+            SpikeStreamTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            )
 
-        Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
+            SpikeStreamTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Password",
+                visualTransformation = PasswordVisualTransformation()
+            )
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
-        if (message != null) {
-            Text(message!!, color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-        }
+            if (message != null) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = message!!,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
 
-        Button(
-            onClick = {
-                isLoading = true
-                message = null
+            SpikeStreamPrimaryButton(
+                text = stringResource(R.string.register_title),
+                isLoading = isLoading,
+                onClick = {
+                    isLoading = true
+                    message = null
 
-                scope.launch {
-                    val result = makeRegisterRequest(email, password)
-                    message = result
-                    isLoading = false
-                    if (result?.startsWith("Success") == true) {
-                        onRegisterSuccess(successMsg)
+                    scope.launch {
+                        val result = makeRegisterRequest(email, password)
+                        message = result
+                        isLoading = false
+                        if (result?.startsWith("Success") == true) {
+                            onRegisterSuccess(successMsg)
+                        }
                     }
                 }
-            },
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            TextButton(onClick = onBackToLogin) {
+                Text(
+                    text = stringResource(R.string.register_login_back),
+                    color = com.leonardos.spikestream.ui.theme.AccentCyan
                 )
-            } else {
-                Text(stringResource(R.string.register_title))
             }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        TextButton(onClick = onBackToLogin) {
-            Text(stringResource(R.string.register_login_back))
         }
     }
 }
@@ -776,7 +1018,7 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
 
 suspend fun makeRegisterRequest(email: String, password: String): String? = withContext(Dispatchers.IO) {
     try {
-        val client = getUnsafeOkHttpClient()
+        val client = getHttpClient()
         val json = JSONObject()
         json.put("email", email)
         json.put("password", password)
@@ -785,7 +1027,7 @@ suspend fun makeRegisterRequest(email: String, password: String): String? = with
         val requestBody = RequestBody.create(mediaType, json.toString())
 
         val request = Request.Builder()
-            .url("https://spikestream.tooolky.com/users")
+            .url("${Constants.BASE_URL}/users")
             .post(requestBody)
             .build()
 
@@ -794,11 +1036,13 @@ suspend fun makeRegisterRequest(email: String, password: String): String? = with
         if (response.isSuccessful) {
             "Success! Controlla l'email per confermare."
         } else {
-            "Errore: HTTP ${response.code()} - ${response.body()?.string()
-                ?.let { JSONObject(it).getString("message") } ?: "Nessun messaggio"}"
+            // Log server detail privately; show user a generic message
+            Log.w("Auth", "Register failed: HTTP ${response.code()}")
+            "Registrazione non riuscita. Controlla i dati e riprova."
         }
 
     } catch (e: Exception) {
-        "Errore: ${e.message}"
+        Log.e("Auth", "Register request failed", e)
+        "Connessione non riuscita. Controlla la rete e riprova."
     }
 }

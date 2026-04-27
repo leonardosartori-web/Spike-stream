@@ -114,4 +114,29 @@
 
     <string name="wifi_warning">⚠️ It is recommended to connect to Wi-Fi for a more stable live stream.</string>
     <string name="streaming_warning">Screen dimmed to save battery</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="support_project">☕ Support the project</string>
+    <string name="about_title">🚀 About Spike Stream</string>
+    <string name="about_desc"><![CDATA[
+        Spike Stream is an independent project dedicated to making volleyball streaming accessible for everyone, from professional leagues to school matches.<br/><br/>
+        Maintaining servers and developing new features takes a lot of time and resources. If you find this app useful, consider supporting its development!
+    ]]></string>
+    <string name="buy_me_coffee">☕ Buy me a coffee</string>
+    <string name="terms_of_service">Terms of Service</string>
+
+    <!-- Match Options Overlay Position -->
+    <string name="overlay_position_title">Overlay Position</string>
+    <string name="overlay_position_subtitle">Tap where you want to place the score</string>
+    <string name="pos_top_left">Top Left</string>
+    <string name="pos_top_right">Top Right</string>
+    <string name="pos_bottom_left">Bottom Left</string>
+    <string name="pos_bottom">Bottom</string>
+    <string name="pos_bottom_right">Bottom Right</string>
+    <string name="stream_preview">Stream Preview</string>
+    <string name="selected">Selected</string>
+    <string name="available">Available</string>
+    <string name="token_not_available">Token not available</string>
+    <string name="invite_link">Invite Link</string>
+    <string name="invite_link_error">Unable to generate the link. Please try again.</string>
+    <string name="connection_failed">Connection failed. Check your network.</string>
 </resources>

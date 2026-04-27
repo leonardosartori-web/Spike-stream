@@ -1,9 +1,14 @@
 package com.leonardos.spikestream
 
+import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
+import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -29,7 +34,7 @@ class SettingsActivity : ComponentActivity() {
         tokenManager = TokenManager(applicationContext)
 
         setContent {
-            MaterialTheme {
+            MyApplicationTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -47,11 +52,8 @@ class SettingsActivity : ComponentActivity() {
 
                 if (tokenState.value == null) {
                     // loader se il token non c'è
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+                    SpikeStreamScreen(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
                     }
                 } else {
                     SettingsScreen(
@@ -84,23 +86,19 @@ fun SettingsScreen(
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Button(
-            onClick = { showDialog = true },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = Color.White
-            ),
-            shape = RoundedCornerShape(12.dp),
-            enabled = !isLoading
+    SpikeStreamScreen {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(if (isLoading) stringResource(R.string.deleting) else stringResource(R.string.delete_account))
+            SpikeStreamDangerButton(
+                text = if (isLoading) stringResource(R.string.deleting) else stringResource(R.string.delete_account),
+                onClick = { showDialog = true },
+                enabled = !isLoading
+            )
         }
     }
 
@@ -137,9 +135,9 @@ fun SettingsScreen(
 suspend fun makeDeleteMe(token: String): Boolean = withContext(
     Dispatchers.IO) {
     try {
-        val client = getUnsafeOkHttpClient()
+        val client = getHttpClient()
         val request = Request.Builder()
-            .url("https://spikestream.tooolky.com/users/me")
+            .url("${Constants.BASE_URL}/users/me")
             .addHeader("Authorization", "Bearer $token")
             .delete()
             .build()
@@ -148,6 +146,7 @@ suspend fun makeDeleteMe(token: String): Boolean = withContext(
         response.isSuccessful
 
     } catch (e: Exception) {
+        Log.e("Settings", "Delete account failed", e)
         false
     }
 }

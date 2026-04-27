@@ -114,4 +114,29 @@
 
     <string name="wifi_warning">⚠️ È consigliato connettersi al Wi-Fi per una diretta più stabile</string>
     <string name="streaming_warning">Lo schermo è scuro per risparmiare batteria</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="support_project">☕ Supporta il progetto</string>
+    <string name="about_title">🚀 About Spike Stream</string>
+    <string name="about_desc"><![CDATA[
+        Spike Stream è un progetto indipendente dedicato a far diventare lo streaming della pallavolo accessibile a tutti, da serie professionali a match scolastici.<br/><br/>
+        Il mantenimento di server e lo sviluppo di nuove features richiede molto tempo e risorse. Se trovi questa app molto utile, considera il supporto per lo sviluppo!
+    ]]></string>
+    <string name="buy_me_coffee">☕ Buy me a coffee</string>
+    <string name="terms_of_service">Termini di servizio</string>
+
+    <!-- Match Options Overlay Position -->
+    <string name="overlay_position_title">Posizione Overlay</string>
+    <string name="overlay_position_subtitle">Tocca dove vuoi posizionare il punteggio</string>
+    <string name="pos_top_left">In alto a sinistra</string>
+    <string name="pos_top_right">In alto a destra</string>
+    <string name="pos_bottom_left">In basso a sinistra</string>
+    <string name="pos_bottom">In basso</string>
+    <string name="pos_bottom_right">In basso a destra</string>
+    <string name="stream_preview">Anteprima Stream</string>
+    <string name="selected">Selezionato</string>
+    <string name="available">Disponibile</string>
+    <string name="token_not_available">Token non disponibile</string>
+    <string name="invite_link">Link Invito</string>
+    <string name="invite_link_error">Impossibile generare il link. Riprova.</string>
+    <string name="connection_failed">Connessione non riuscita. Controlla la rete.</string>
 </resources>

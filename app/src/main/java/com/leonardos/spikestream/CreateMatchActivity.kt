@@ -4,10 +4,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
+import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +53,9 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
+import com.leonardos.spikestream.ui.theme.SpikeStreamTextField
+import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -100,14 +105,14 @@ class CreateMatchActivity: ComponentActivity() {
                             onGoogleLoginClick = {
                                 val intent = Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://spikestream.tooolky.com/auth/google")
+                                    Uri.parse("${Constants.BASE_URL}/auth/google")
                                 )
                                 startActivity(intent)
                             },
                             onForgotPasswordClick = {
                                 val intent = Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://spikestream.tooolky.com/auth/reset-password")
+                                    Uri.parse("${Constants.BASE_URL}/auth/reset-password")
                                 )
                                 startActivity(intent)
                             }
@@ -131,16 +136,19 @@ class CreateMatchActivity: ComponentActivity() {
         var team2 by remember { mutableStateOf("") }
         var streamUrl by remember { mutableStateOf("rtmp://") }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+        SpikeStreamScreen {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
 
             Text(
                 text = stringResource(R.string.create_match_title),
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -164,43 +172,43 @@ class CreateMatchActivity: ComponentActivity() {
                     .setPositiveButton("OK", null)
                     .show()
             }) {
-                Text(context.getString(R.string.guide_button_show))
+                Text(
+                    context.getString(R.string.guide_button_show),
+                    color = com.leonardos.spikestream.ui.theme.AccentCyan
+                )
             }
 
             // Input fields
-            OutlinedTextField(
+            SpikeStreamTextField(
                 value = team1,
                 onValueChange = { team1 = it },
-                label = { Text(stringResource(R.string.local_team)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = stringResource(R.string.local_team)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
 
-            OutlinedTextField(
+            SpikeStreamTextField(
                 value = team2,
                 onValueChange = { team2 = it },
-                label = { Text(stringResource(R.string.guest_team)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = stringResource(R.string.guest_team)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
 
-            OutlinedTextField(
+            SpikeStreamTextField(
                 value = streamUrl,
                 onValueChange = { streamUrl = it },
-                label = { Text("URL RTMP") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                label = "URL RTMP"
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
             var isLoading by remember { mutableStateOf(false) }
 
-            Button(
+            SpikeStreamPrimaryButton(
+                text = stringResource(R.string.create_match),
+                isLoading = isLoading,
+                enabled = team1.isNotBlank() && team2.isNotBlank() && (streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://")),
                 onClick = {
                     if (validateInput(team1, team2, streamUrl)) {
                         if (token != null) {
@@ -208,14 +216,6 @@ class CreateMatchActivity: ComponentActivity() {
                             scope.launch {
                                 when (val result = makeCreateMatchRequest(token!!, team1, team2, streamUrl)) {
                                     is CreateMatchResult.Success -> {
-                                        /*val finalMatchId = result.matchId
-                                        val intent = Intent(context, MatchOptionsActivity::class.java).apply {
-                                            putExtra("TEAM_1", team1)
-                                            putExtra("TEAM_2", team2)
-                                            putExtra("RTMP_URL", streamUrl)
-                                            putExtra("MATCH_ID", finalMatchId)
-                                        }
-                                        context.startActivity(intent)*/
                                         isLoading = false
                                         finish()
                                     }
@@ -229,24 +229,10 @@ class CreateMatchActivity: ComponentActivity() {
                             Toast.makeText(context, "Token non disponibile", Toast.LENGTH_SHORT).show()
                         }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                enabled = !isLoading && team1.isNotBlank() && team2.isNotBlank() && (streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://"))
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(24.dp)
-                    )
-                } else {
-                    Text(stringResource(R.string.create_match))
                 }
-            }
+            )
         }
-
+        }
     }
 
 
@@ -278,7 +264,7 @@ suspend fun makeCreateMatchRequest(
     rtmpUrl: String
 ): CreateMatchResult = withContext(Dispatchers.IO) {
     try {
-        val client = getUnsafeOkHttpClient()
+        val client = getHttpClient()
         val jsonBody = JSONObject().apply {
             put("teamAName", teamAName)
             put("teamBName", teamBName)
@@ -289,7 +275,7 @@ suspend fun makeCreateMatchRequest(
         val requestBody = RequestBody.create(mediaType, jsonBody.toString())
 
         val request = Request.Builder()
-            .url("https://spikestream.tooolky.com/games")
+            .url("${Constants.BASE_URL}/games")
             .addHeader("Authorization", "Bearer $token")
             .post(requestBody)
             .build()
@@ -299,13 +285,15 @@ suspend fun makeCreateMatchRequest(
 
         if (response.isSuccessful) {
             val json = JSONObject(body)
-            val matchId = json.getString("id") // se la risposta include matchId
+            val matchId = json.getString("id")
             CreateMatchResult.Success(matchId)
         } else {
-            CreateMatchResult.Error("Errore ${response.code()}: $body")
+            Log.w("CreateMatch", "Create match failed: HTTP ${response.code()}")
+            CreateMatchResult.Error("Creazione non riuscita. Riprova.")
         }
     } catch (e: Exception) {
-        CreateMatchResult.Error("Eccezione: ${e.localizedMessage}")
+        Log.e("CreateMatch", "Create match request failed", e)
+        CreateMatchResult.Error("Connessione non riuscita. Controlla la rete.")
     }
 }
 

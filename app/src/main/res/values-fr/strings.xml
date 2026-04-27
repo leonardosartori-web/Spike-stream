@@ -1,0 +1,142 @@
+<resources>
+    <string name="app_name" translatable="false">Spike Stream</string>
+    <string name="server_client_id" translatable="false">66523707648-tdaknu48nsfo4t68lhfvkpudd0l7fijj.apps.googleusercontent.com</string>
+
+    <!-- Login -->
+    <string name="login_title">Connexion</string>
+    <string name="login_google">Connexion avec Google</string>
+    <string name="login_register">Vous n\'avez pas de compte ? Inscrivez-vous</string>
+    <string name="login_password_forgot">Mot de passe oublié ? Réinitialisez-le</string>
+
+
+    <!-- Dashboard -->
+    <string name="logout">Déconnexion</string>
+    <string name="no_match">Aucun match ici.</string>
+    <string name="no_match1">Si vous ne voyez pas vos matchs, actualisez cette page</string>
+    <string name="open">Ouvrir</string>
+    <string name="delete">Supprimer</string>
+    <string name="add_match">Ajouter un nouveau match</string>
+    <string name="deletion_error">Erreur lors de la suppression</string>
+
+    <!-- Register -->
+    <string name="register_title">Inscription</string>
+    <string name="register_login_back">Vous avez déjà un compte ? Connectez-vous</string>
+    <string name="register_success">Vérifiez votre e-mail pour confirmer</string>
+
+    <!-- Create Match -->
+    <string name="create_match_title">Configurer le streaming</string>
+    <string name="guide_button_hide">❌ Masquer le guide de streaming</string>
+    <string name="guide_button_show">ℹ️ Afficher le guide de streaming</string>
+    <string name="guide_title">Comment configurer le streaming sur YouTube ou Twitch :</string>
+    <string name="guide_body">
+    <![CDATA[
+    📺 <b>YouTube</b>:
+    <ul>
+        <li>Allez sur <a href="https://studio.youtube.com">studio.youtube.com</a></li>
+        <li>Cliquez sur « Go live »</li>
+        <li>Vous trouverez :
+            <ul>
+                <li>URL RTMP : <code>rtmp://a.rtmp.youtube.com/live2</code></li>
+                <li>Clé de stream : ex. <i>abcd-1234-xxxx-zzzz</i></li>
+            </ul>
+        </li>
+        <li>Saisissez : <code>rtmp://a.rtmp.youtube.com/live2/abcd-1234-xxxx-zzzz</code></li>
+    </ul>
+
+    🎮 <b>Twitch</b>:
+    <ul>
+        <li>Allez sur <a href="https://dashboard.twitch.tv">dashboard.twitch.tv</a></li>
+        <li>Menu &gt; Paramètres &gt; Stream</li>
+        <li>URL RTMP : <code>rtmp://live.twitch.tv/app</code></li>
+        <li>Clé de stream : ex. <i>live_12543_...</i></li>
+        <li>Saisissez : <code>rtmp://live.twitch.tv/app/live_12543_...</code></li>
+    </ul>
+    ]]>
+</string>
+
+    <string name="guide_footer">L\'URL RTMP est chiffrée et n\'est visible par personne.</string>
+    <string name="local_team">Équipe à domicile</string>
+    <string name="guest_team">Équipe à l\'extérieur</string>
+    <string name="create_match">Créer le match</string>
+    <string name="create_match_error1">Entrez le nom de l\'équipe à domicile</string>
+    <string name="create_match_error2">Entrez le nom de l\'équipe à l\'extérieur</string>
+    <string name="create_match_error3">L\'URL doit commencer par rtmp://</string>
+
+    <!-- Options -->
+    <string name="copy_link">Lien copié dans le presse-papiers !</string>
+    <string name="generate_link">Générer un lien d\'invitation</string>
+    <string name="score_editing_title_info">Comment modifier le score ?</string>
+    <string name="score_editing_full_info"><![CDATA[
+    Pour modifier le score pendant le live, vous devez générer un <b>lien</b> avant le match.<br/><br/>
+    Ce lien ouvre une <b>page web</b> où vous pouvez mettre à jour les points des deux équipes en temps réel.<br/><br/>
+    🔗 Il est recommandé de partager le lien avec une seule personne de confiance pour éviter les modifications simultanées.<br/><br/>
+    ⚠️ Toute personne ayant le lien peut modifier les scores, donc <b>ne le partagez pas publiquement</b>.
+]]></string>
+
+
+    <!-- Streaming -->
+    <string name="streaming_launched">Streaming démarré !</string>
+    <string name="stop_stream">Arrêter le streaming</string>
+    <string name="launch_stream">Démarrer le streaming</string>
+    <string name="permissions">Veuillez activer les autorisations</string>
+
+
+    <string name="how_to_title">📘 Comment utiliser Spikestream</string>
+
+    <!-- App purpose -->
+    <string name="app_purpose">
+    Spikestream vous permet de diffuser des matchs en direct et de gérer le score en temps réel afin que les spectateurs puissent les suivre de n\'importe où.
+</string>
+
+    <!-- How it works -->
+    <string name="how_to_steps_title">Comment ça fonctionne</string>
+    <string name="step1_title">1. Connectez-vous ou inscrivez-vous</string>
+    <string name="step1_desc">Connectez-vous ou créez un nouveau compte. Après la connexion, vous serez redirigé vers votre liste de matchs créés.</string>
+
+    <string name="step2_title">2. Créer un match</string>
+    <string name="step2_desc"><![CDATA[Appuyez sur le bouton en bas de la liste des matchs. Entrez les noms des équipes et l\'adresse RTMP où le match sera diffusé.
+    Pour YouTube, vous pouvez regarder le <a href="https://www.youtube.com/watch?v=M3H3aX1Aoz4">tutoriel YouTube</a> pour apprendre à créer une URL RTMP pour le live.]]></string>
+
+    <string name="step3_title">3. Confirmer la création</string>
+    <string name="step3_desc">Appuyez sur "Créer le match" pour confirmer. Vous reviendrez au tableau de bord avec tous vos matchs.</string>
+
+    <string name="step4_title">4. Démarrer le streaming</string>
+    <string name="step4_desc">Ouvrez le match depuis la liste. Dans l\'écran du match, vous trouverez deux boutons :
+    - "Démarrer le streaming" pour commencer la diffusion.
+    - "Générer un lien d\'invitation" pour créer un lien à partager avec la personne qui mettra à jour le score (de préférence une seule personne).</string>
+
+    <string name="delete_account">Supprimer le compte</string>
+    <string name="deleting">Suppression...</string>
+    <string name="confirm_deletion">Confirmer la suppression</string>
+    <string name="delete_confirmation_text">Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.</string>
+    <string name="cancel">Annuler</string>
+    <string name="account_deleted_success">Compte supprimé avec succès</string>
+
+    <string name="wifi_warning">⚠️ Il est recommandé de se connecter au Wi-Fi pour un streaming plus stable.</string>
+    <string name="streaming_warning">Écran assombri pour économiser la batterie</string>
+    <string name="privacy_policy">Politique de confidentialité</string>
+    <string name="support_project">☕ Soutenir le projet</string>
+    <string name="about_title">🚀 À propos de Spike Stream</string>
+    <string name="about_desc"><![CDATA[
+        Spike Stream est un projet indépendant dédié à rendre le streaming de volleyball accessible à tous, des ligues professionnelles aux matchs scolaires.<br/><br/>
+        Maintenir les serveurs et développer de nouvelles fonctionnalités demande beaucoup de temps et de ressources. Si cette application vous est utile, pensez à soutenir son développement !
+    ]]></string>
+    <string name="buy_me_coffee">☕ Offrez-moi un café</string>
+    <string name="terms_of_service">Conditions d\'utilisation</string>
+
+    <!-- Match Options Overlay Position -->
+    <string name="overlay_position_title">Position de l\'incrustation</string>
+    <string name="overlay_position_subtitle">Appuyez là où vous souhaitez placer le score</string>
+    <string name="pos_top_left">En haut à gauche</string>
+    <string name="pos_top_right">En haut à droite</string>
+    <string name="pos_bottom_left">En bas à gauche</string>
+    <string name="pos_bottom">En bas</string>
+    <string name="pos_bottom_right">En bas à droite</string>
+    <string name="stream_preview">Aperçu del stream</string>
+    <string name="selected">Sélectionné</string>
+    <string name="available">Disponible</string>
+    <string name="token_not_available">Jeton non disponible</string>
+    <string name="invite_link">Lien d\'invitation</string>
+    <string name="invite_link_error">Impossible de générer le lien. Veuillez réessayer.</string>
+    <string name="connection_failed">Connexion échouée. Vérifiez votre réseau.</string>
+</resources>

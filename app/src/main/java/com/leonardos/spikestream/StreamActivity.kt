@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.provider.Settings
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.media.EncoderProfiles.VideoProfile
 import android.media.MediaRecorder.VideoEncoder
@@ -27,20 +28,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.AppGradient
+import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
+import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.rtplibrary.rtmp.RtmpCamera2
@@ -50,7 +57,13 @@ import io.socket.client.IO
 import io.socket.client.Socket
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.Request
 import org.json.JSONObject
+import org.json.JSONArray
 
 class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
@@ -87,6 +100,15 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         val team1Sets = intent.getIntExtra("TEAM1_SETS", 0)
         val team2Sets = intent.getIntExtra("TEAM2_SETS", 0)
         val id_match = intent.getStringExtra("MATCH_ID") ?: ""
+        val overlayPositionString = intent.getStringExtra("OVERLAY_POSITION") ?: "BOTTOM"
+        
+        val translatePosition = when (overlayPositionString) {
+            "BOTTOM_LEFT" -> TranslateTo.BOTTOM_LEFT
+            "BOTTOM_RIGHT" -> TranslateTo.BOTTOM_RIGHT
+            "TOP_LEFT" -> TranslateTo.TOP_LEFT
+            "TOP_RIGHT" -> TranslateTo.TOP_RIGHT
+            else -> TranslateTo.BOTTOM
+        }
 
         tokenManager = TokenManager(applicationContext)
 
@@ -102,7 +124,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                     team1Sets,
                     team2Sets,
                     rtmpUrl,
-                    id_match
+                    id_match,
+                    translatePosition
                 )
             }
         }
@@ -127,15 +150,24 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     }
 
     /** 📶 Stima rete */
-    private fun estimateNetworkQuality(): Triple<Int, Int, String> {
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+    private fun getNetworkQualityFromCaps(caps: NetworkCapabilities?): Triple<Int, Int, String> {
         return when {
             caps == null -> Triple(480, 600 * 1024, "UNKNOWN")
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Triple(1280, 2_000 * 1024, "WIFI")
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Triple(854, 900 * 1024, "MOBILE")
             else -> Triple(480, 700 * 1024, "OTHER")
         }
+    }
+
+    private fun estimateNetworkQuality(): Triple<Int, Int, String> {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        return getNetworkQualityFromCaps(cm.getNetworkCapabilities(cm.activeNetwork))
+    }
+
+    private fun getDimsForOrientation(isPortrait: Boolean, resBase: Int): Pair<Int, Int> {
+        val longDim = if (resBase >= 1280) 1280 else 854
+        val shortDim = if (resBase >= 1280) 720 else 480
+        return if (isPortrait) shortDim to longDim else longDim to shortDim
     }
 
     /** 🔁 Monitor bitrate e soft restart */
@@ -167,35 +199,32 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 if (!rtmpCamera.isStreaming) return
 
                 val now = System.currentTimeMillis()
-                if (now - lastAdjustTime < 5000) return
+                if (now - lastAdjustTime < 8000) return
 
                 val caps = cm.getNetworkCapabilities(network)
-                val (res, bitrate, type) = when {
-                    caps == null -> Triple(480, 600 * 1024, "UNKNOWN")
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Triple(1280, 2_000 * 1024, "WIFI")
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Triple(854, 900 * 1024, "MOBILE")
-                    else -> Triple(480, 700 * 1024, "OTHER")
-                }
+                val (res, bitrate, type) = getNetworkQualityFromCaps(caps)
 
-                val width = if (res == 1280) 1280 else 854
-                val height = if (res == 1280) 720 else 480
+                val isPortrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                val (width, height) = getDimsForOrientation(isPortrait, res)
 
                 runOnUiThread {
-                    if (bitrate < MIN_BITRATE && (lastWidth != 854 || lastHeight != 480)) {
+                    if (bitrate < MIN_BITRATE && (lastWidth != width || lastHeight != height)) {
+                        lastAdjustTime = System.currentTimeMillis()
                         // Soft restart a risoluzione più bassa
                         rtmpCamera.stopStream()
                         rtmpCamera.prepareVideo(
-                            854, 480, 25, 900 * 1024, 2, 0, VideoEncoder.H264, VideoProfile.HDR_NONE
+                            width, height, 25, 900 * 1024, 2, if (isPortrait) 90 else 0, VideoEncoder.H264, VideoProfile.HDR_NONE
                         )
                         rtmpCamera.prepareAudio(128 * 1024, 48000, true)
                         rtmpCamera.startStream(streamUrl)
 
-                        currentWidth = 854
-                        currentHeight = 480
+                        currentWidth = width
+                        currentHeight = height
                         currentBitrate = 900 * 1024
 
-                        lastWidth = 854
-                        lastHeight = 480
+                        lastWidth = width
+                        lastHeight = height
+
                         lastBitrate = currentBitrate
 
                         Log.i("Stream", "🔻 Soft restart a 480p per rete lenta")
@@ -228,20 +257,31 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         team1Score: Int,
         team2Score: Int,
         team1Sets: Int,
-        team2Sets: Int
+        team2Sets: Int,
+        servingTeam: Int,
+        style: String,
+        position: TranslateTo
     ) {
-        val hash = listOf(team1Score, team2Score, team1Sets, team2Sets).hashCode()
+        var hash = 17
+        hash = hash * 31 + team1Score
+        hash = hash * 31 + team2Score
+        hash = hash * 31 + team1Sets
+        hash = hash * 31 + team2Sets
+        hash = hash * 31 + servingTeam
+        hash = hash * 31 + style.hashCode()
+        hash = hash * 31 + width
+        hash = hash * 31 + height
 
         if (hash != lastScoreHash) {
             lastScoreHash = hash
 
-            // Bitmap più piccola per ridurre lavoro GPU
             val bmp = scoreRenderer.render(width, height, team1Score, team2Score, team1Sets, team2Sets)
+
+            imageFilter?.setPosition(position)
 
             lastScoreBitmap?.recycle()
             lastScoreBitmap = bmp
 
-            // Aggiorna solo l’immagine del filtro, non ricreare filtro
             imageFilter?.setImage(bmp)
         }
     }
@@ -255,11 +295,16 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         team1PtsInit: Int, team2PtsInit: Int,
         team1SetsInit: Int, team2SetsInit: Int,
         streamUrl: String,
-        matchId: String
+        matchId: String,
+        overlayPosition: TranslateTo
     ) {
         val ctx = LocalContext.current
         val activity = ctx as Activity
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        val scope = rememberCoroutineScope()
+        val configuration = LocalConfiguration.current
+        val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
 
         var team1 by remember { mutableStateOf(team1Init) }
         var team2 by remember { mutableStateOf(team2Init) }
@@ -270,6 +315,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
         var isStreamingState by remember { mutableStateOf(false) }
         var networkType by remember { mutableStateOf("UNKNOWN") }
+        var servingTeam by remember { mutableIntStateOf(0) }
+        var overlayStyle by remember { mutableStateOf("classic") }
 
         // Permessi
         val launcher = rememberLauncherForActivityResult(
@@ -301,21 +348,59 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             }
         }
 
-        // Socket setup
-        val client = getUnsafeOkHttpClient()
-        val opts = IO.Options().apply {
-            transports = arrayOf("websocket")
-            callFactory = client
-            webSocketFactory = client
-            reconnection = true
-            reconnectionAttempts = 5
-            reconnectionDelay = 1000
-            timeout = 20000
-        }
-        val socket = remember { IO.socket("https://spikestream.tooolky.com", opts) }
+        // Socket setup — JWT is passed via handshake auth (not inside event payloads)
+        // The token comes from the Activity's tokenManager which is already in scope;
+        // we read it once here using the token passed through the Intent pipeline.
+        // NOTE: we use the token already collected from the parent LaunchedEffect below.
+        val client = getHttpClient()
+        // tokenForSocket is collected asynchronously below and stored in state
+        val tokenForSocket = remember { mutableStateOf<String?>(null) }
 
-        DisposableEffect(Unit) {
-            socket.on("score_update") { args ->
+        // ✅ Collezione del token
+        LaunchedEffect(Unit) {
+            tokenManager.tokenFlow.collect { t ->
+                tokenForSocket.value = t
+            }
+        }
+
+        // ✅ Fetch iniziale dei dati del match (score/sets)
+        LaunchedEffect(tokenForSocket.value) {
+            val t = tokenForSocket.value
+            if (t != null) {
+                when (val result = makeGetGameRequest(t, matchId)) {
+                    is GetGameResult.Success -> {
+                        team1Pts = result.team1Pts
+                        team2Pts = result.team2Pts
+                        team1Sets = result.team1Sets
+                        team2Sets = result.team2Sets
+                    }
+                    is GetGameResult.Error -> {
+                        Log.e("Stream", "Failed to load initial game state: ${result.message}")
+                    }
+                }
+            }
+        }
+
+        // Build socket with auth once we have the token
+        val socket = remember(tokenForSocket.value) {
+            val authOpts = IO.Options().apply {
+                transports = arrayOf("websocket")
+                callFactory = client
+                webSocketFactory = client
+                reconnection = true
+                reconnectionAttempts = 5
+                reconnectionDelay = 1000
+                timeout = 20000
+                val t = tokenForSocket.value
+                if (t != null) auth = mapOf("token" to t)
+            }
+            IO.socket(Constants.BASE_URL, authOpts)
+        }
+
+        DisposableEffect(socket) {
+            // Only connect if the token is present (we rely on socket recreation if the token arrives later)
+            if (tokenForSocket.value != null) {
+                socket.on("score_update") { args ->
                 if (args.isNotEmpty() && args[0] is JSONObject) {
                     val data = args[0] as JSONObject
                     if (data.get("matchId") == matchId) {
@@ -332,15 +417,10 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             teamASets.getInt(i) < teamBSets.getInt(i)
                         }
 
-                        Handler(Looper.getMainLooper()).post {
-                            team1Pts = aPts
-                            team2Pts = bPts
-                            team1Sets = aSets
-                            team2Sets = bSets
-
-                            //Toast.makeText(ctx, "Score updated ${team1Pts} - ${team2Pts}", Toast.LENGTH_SHORT).show()
-
-                        }
+                        team1Pts = aPts
+                        team2Pts = bPts
+                        team1Sets = aSets
+                        team2Sets = bSets
                     }
                 }
             }
@@ -359,32 +439,38 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 socket.emit("join_match", JSONObject().put("matchId", matchId))
             }
 
-            try { socket.connect() } catch (e: Exception) {
+            try {
+                socket.connect()
+            } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(ctx, "Connection: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
 
-            onDispose {
-                if (socket.connected()) {
-                    socket.disconnect()
-                    socket.off()
+        onDispose {
+            if (socket.connected()) {
+                socket.disconnect()
+                socket.off()
+            }
+        }
+    }
+
+        // Handle orientation change during stream
+        LaunchedEffect(isPortrait) {
+            if (isStreamingState) {
+                stopBitrateMonitorReactive()
+                if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
+                    rtmpCamera.stopStream()
                 }
+                isStreamingState = false
+                restoreBrightness()
+                Toast.makeText(ctx, "Orientamento cambiato: ricrea RTMP...", Toast.LENGTH_SHORT).show()
             }
         }
 
-        val tokenState = remember { mutableStateOf<String?>(null) }
-        val coroutineScope = rememberCoroutineScope()
-
+        // 🔋 Low battery notification — token is already in socket handshake, not repeated here
         LaunchedEffect(Unit) {
-            tokenManager.tokenFlow.collect { token ->
-                tokenState.value = token
-            }
-        }
-
-        // 🔋 Monitoraggio livello batteria e invio via socket con JWT
-        LaunchedEffect(tokenState.value) {
-            val token = tokenState.value ?: return@LaunchedEffect
             var hasNotified = false
 
             val batteryFlow = callbackFlow<Int> {
@@ -403,18 +489,16 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             batteryFlow.collect { batteryPct ->
                 when {
                     batteryPct <= 30 && !hasNotified -> {
+                        // Token is authenticated at socket handshake level — no need to resend it here
                         val msg = JSONObject().apply {
                             put("matchId", matchId)
                             put("battery", batteryPct)
-                            put("token", token)
                         }
                         socket.emit("low_battery", msg)
-                        //Log.i("BatteryMonitor", "⚠️ Low battery sent: $batteryPct% with token")
                         hasNotified = true
                     }
                     batteryPct > 30 && hasNotified -> {
                         hasNotified = false
-                        //Log.i("BatteryMonitor", "🔋 Battery level restored: $batteryPct%")
                     }
                 }
             }
@@ -449,41 +533,73 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             }
         }
 
+        val (res, bitrate, _) = estimateNetworkQuality()
+        val (wInitial, hInitial) = getDimsForOrientation(isPortrait, res)
+        currentWidth = wInitial
+        currentHeight = hInitial
+        currentBitrate = bitrate
+
         // UI
         Box(Modifier.fillMaxSize()) {
-            AndroidView(
-                factory = { ctx ->
-                    openGlView = OpenGlView(ctx)
-                    rtmpCamera = RtmpCamera2(openGlView, this@StreamActivity)
+            key(isPortrait) {
+                AndroidView(
+                    factory = { ctx ->
+                        openGlView = OpenGlView(ctx)
+                        rtmpCamera = RtmpCamera2(openGlView, this@StreamActivity)
 
-                    openGlView.post {
-                        val width = openGlView.width.takeIf { it > 0 } ?: 1280
-                        val height = openGlView.height.takeIf { it > 0 } ?: 720
+                        openGlView.post {
+                            // First, calculate the correct dimensions based on orientation
+                            val (resBase, bitrateSelected, _) = estimateNetworkQuality()
+                            val (width, height) = getDimsForOrientation(isPortrait, resBase)
 
-                        imageFilter = ImageObjectFilterRender().apply {
-                            setImage(scoreRenderer.render(currentWidth, currentHeight, team1Pts, team2Pts, team1Sets, team2Sets))
-                            setDefaultScale(currentWidth, currentHeight)
-                            setPosition(TranslateTo.BOTTOM_LEFT)
+                            // Prepare video with identical resolution to broadcast for preview quality
+                            rtmpCamera.prepareVideo(width, height, 25, bitrateSelected, 2, if (!isPortrait) 0 else 90)
+                            rtmpCamera.prepareAudio(128 * 1024, 48000, true)
+
+                            imageFilter = ImageObjectFilterRender().apply {
+                                setImage(
+                                    scoreRenderer.render(
+                                        width,
+                                        height,
+                                        team1Pts,
+                                        team2Pts,
+                                        team1Sets,
+                                        team2Sets
+                                    )
+                                )
+                                setDefaultScale(width, height)
+                                setPosition(overlayPosition)
+                            }
+
+                            rtmpCamera.glInterface.addFilter(imageFilter)
+                            rtmpCamera.startPreview()
                         }
-                        rtmpCamera.glInterface.addFilter(imageFilter)
-                        rtmpCamera.startPreview()
-                    }
-                    openGlView
-                },
-                modifier = if (isStreamingState) Modifier.size(1.dp) else Modifier.fillMaxSize()
-            )
+
+                        openGlView
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             // Overlay dinamico
-            LaunchedEffect(team1Pts, team2Pts, team1Sets, team2Sets) {
+            LaunchedEffect(team1Pts, team2Pts, team1Sets, team2Sets, servingTeam, overlayStyle, isPortrait) {
+                // Determine current width/height based on orientation
+                val (resBase, _, _) = estimateNetworkQuality()
+                val (width, height) = getDimsForOrientation(isPortrait, resBase)
+
                 updateOverlayIfChanged(
-                    currentWidth,
-                    currentHeight,
+                    width,
+                    height,
                     team1Pts,
                     team2Pts,
                     team1Sets,
-                    team2Sets
+                    team2Sets,
+                    servingTeam,
+                    overlayStyle,
+                    overlayPosition
                 )
             }
+
 
 
             if (isStreamingState) {
@@ -519,21 +635,37 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 )
             }
 
-            Button(
-                onClick = {
-                    if (!isStreamingState) {
-                        val (res, bitrate, _) = estimateNetworkQuality()
-                        currentWidth = if (res == 1280) 1280 else 854
-                        currentHeight = if (res == 1280) 720 else 480
-                        currentBitrate = bitrate
+            if (isStreamingState) {
+                SpikeStreamDangerButton(
+                    text = stringResource(R.string.stop_stream),
+                    onClick = {
+                        stopBitrateMonitorReactive()
+                        rtmpCamera.stopStream()
+                        isStreamingState = false
+                        restoreBrightness()
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).widthIn(min = 200.dp)
+                )
 
-                        if (rtmpCamera.prepareVideo(currentWidth, currentHeight, 25, currentBitrate, 2, 0, VideoEncoder.H264, VideoProfile.HDR_NONE) &&
+            } else {
+                SpikeStreamPrimaryButton(
+                    text = stringResource(R.string.launch_stream),
+                    onClick = {
+                        rtmpCamera.glInterface.removeFilter(0)
+                        val (resBase, bitrateSelected, _) = estimateNetworkQuality()
+                        val (width, height) = getDimsForOrientation(isPortrait, resBase)
+
+                        if (rtmpCamera.prepareVideo(width, height, 25, bitrateSelected, 2, if (!isPortrait) 0 else 90, VideoEncoder.H264, VideoProfile.HDR_NONE) &&
                             rtmpCamera.prepareAudio(128 * 1024, 48000, true)
                         ) {
+                            currentWidth = width
+                            currentHeight = height
+                            currentBitrate = bitrateSelected
+
                             imageFilter = ImageObjectFilterRender().apply {
-                                setImage(scoreRenderer.render(currentWidth, currentHeight, team1Pts, team2Pts, team1Sets, team2Sets))
-                                setDefaultScale(currentWidth, currentHeight)
-                                setPosition(TranslateTo.BOTTOM_LEFT)
+                                setImage(scoreRenderer.render(width, height, team1Pts, team2Pts, team1Sets, team2Sets))
+                                setDefaultScale(if (!isPortrait) width else height, if (!isPortrait) height else width)
+                                setPosition(overlayPosition)
                             }
                             rtmpCamera.glInterface.addFilter(imageFilter)
                             rtmpCamera.startStream(streamUrl)
@@ -541,20 +673,9 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             startBitrateMonitorReactive(streamUrl)
                             setScreenBrightness(0.02f)
                         }
-                    } else {
-                        stopBitrateMonitorReactive()
-                        rtmpCamera.stopStream()
-                        isStreamingState = false
-                        restoreBrightness()
-                    }
-                },
-                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isStreamingState) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).widthIn(min = 200.dp)
                 )
-            ) {
-                Text(if (isStreamingState) stringResource(R.string.stop_stream) else stringResource(R.string.launch_stream))
             }
         }
     }
@@ -578,7 +699,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     }
 
     /** 🔌 RTMP callbacks */
-    override fun onConnectionStartedRtmp(rtmpUrl: String) { Log.i("Stream", "Connessione iniziata: $rtmpUrl") }
+    // Redacted: do NOT log rtmpUrl — it contains the stream key
+    override fun onConnectionStartedRtmp(rtmpUrl: String) { Log.i("Stream", "Connessione RTMP avviata") }
     override fun onConnectionSuccessRtmp() { Log.i("Stream", "✅ Connessione RTMP stabilita") }
     override fun onConnectionFailedRtmp(reason: String) {
         Log.e("Stream", "❌ Connessione fallita: $reason")
@@ -593,4 +715,49 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
     override fun onDisconnectRtmp() { Log.w("Stream", "Disconnesso") }
     override fun onAuthErrorRtmp() { Log.e("Stream", "Errore autenticazione") }
     override fun onAuthSuccessRtmp() { Log.i("Stream", "Autenticazione ok") }
+}
+
+sealed class GetGameResult {
+    data class Success(val team1Pts: Int, val team2Pts: Int, val team1Sets: Int, val team2Sets: Int) : GetGameResult()
+    data class Error(val message: String) : GetGameResult()
+}
+
+suspend fun makeGetGameRequest(token: String, matchId: String): GetGameResult = withContext(Dispatchers.IO) {
+    try {
+        val client = getHttpClient()
+        val request = Request.Builder()
+            .url("${Constants.BASE_URL}/games/$matchId")
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        val response = client.newCall(request).execute()
+        val body = response.body()?.string() ?: ""
+
+        if (response.isSuccessful) {
+            val json = JSONObject(body)
+            val teamASets = json.getJSONArray("teamASets")
+            val teamBSets = json.getJSONArray("teamBSets")
+
+            if (teamASets.length() > 0 && teamBSets.length() > 0) {
+                val aPts = teamASets.getInt(teamASets.length() - 1)
+                val bPts = teamBSets.getInt(teamBSets.length() - 1)
+
+                val aSets = (0 until minOf(teamASets.length(), teamBSets.length()) - 1).count { i ->
+                    teamASets.getInt(i) > teamBSets.getInt(i)
+                }
+                val bSets = (0 until minOf(teamASets.length(), teamBSets.length()) - 1).count { i ->
+                    teamASets.getInt(i) < teamBSets.getInt(i)
+                }
+
+                GetGameResult.Success(aPts, bPts, aSets, bSets)
+            } else {
+                GetGameResult.Success(0, 0, 0, 0)
+            }
+        } else {
+            GetGameResult.Error("Errore caricamento dati match: ${response.code()}")
+        }
+    } catch (e: Exception) {
+        Log.e("Stream", "Get game request failed", e)
+        GetGameResult.Error("Connessione fallita")
+    }
 }

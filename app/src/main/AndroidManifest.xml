@@ -19,7 +19,7 @@
 
 
     <application
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -30,18 +30,35 @@
         android:theme="@style/Theme.MyApplication"
         tools:targetApi="31">
 
+        <!--
+            AdMob App ID is injected from local.properties via manifestPlaceholders
+            in build.gradle.kts — it is never committed to source control.
+        -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-2622126149242920~7887769234" />
+            android:value="${admobAppId}" />
 
 
+        <!--
+            Inner activities are explicitly NOT exported: they can only be started
+            from within this app, preventing other apps from injecting spoofed Intents.
+        -->
         <activity
             android:name=".StreamActivity"
+            android:exported="false"
             android:configChanges="orientation|screenSize" />
-        <activity android:name=".CreateMatchActivity" />
-        <activity android:name=".MatchOptionsActivity" />
-        <activity android:name=".InfoActivity" />
-        <activity android:name=".SettingsActivity" />
+        <activity
+            android:name=".CreateMatchActivity"
+            android:exported="false" />
+        <activity
+            android:name=".MatchOptionsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".InfoActivity"
+            android:exported="false" />
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -57,7 +74,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <!-- Il tuo custom scheme -->
+                <!-- Custom scheme for OAuth/deep-link token return -->
                 <data
                     android:scheme="spikestream"
                     android:host="spikestream.tooolky.com"
