@@ -100,6 +100,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         val team1Sets = intent.getIntExtra("TEAM1_SETS", 0)
         val team2Sets = intent.getIntExtra("TEAM2_SETS", 0)
         val id_match = intent.getStringExtra("MATCH_ID") ?: ""
+        val cameraId = intent.getStringExtra("CAMERA_ID") ?: "0"
         val overlayPositionString = intent.getStringExtra("OVERLAY_POSITION") ?: "BOTTOM"
         
         val translatePosition = when (overlayPositionString) {
@@ -125,7 +126,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                     team2Sets,
                     rtmpUrl,
                     id_match,
-                    translatePosition
+                    translatePosition,
+                    cameraId
                 )
             }
         }
@@ -296,7 +298,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         team1SetsInit: Int, team2SetsInit: Int,
         streamUrl: String,
         matchId: String,
-        overlayPosition: TranslateTo
+        overlayPosition: TranslateTo,
+        cameraId: String
     ) {
         val ctx = LocalContext.current
         val activity = ctx as Activity
@@ -322,7 +325,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         val launcher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { result ->
-            if (result.values.all { it }) if (::rtmpCamera.isInitialized) rtmpCamera.startPreview()
+            if (result.values.all { it }) if (::rtmpCamera.isInitialized) rtmpCamera.startPreview(cameraId)
             else Toast.makeText(ctx, ctx.getString(R.string.permissions), Toast.LENGTH_SHORT).show()
         }
 
@@ -428,13 +431,13 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             socket.on(Socket.EVENT_CONNECT_ERROR) { args ->
                 val err = args.getOrNull(0)?.toString() ?: "Unknown error"
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(ctx, "Connection error: $err", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, ctx.getString(R.string.connection_failed) + ": $err", Toast.LENGTH_SHORT).show()
                 }
             }
 
             socket.on(Socket.EVENT_CONNECT) {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(ctx, "Connecting...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, ctx.getString(R.string.connecting), Toast.LENGTH_SHORT).show()
                 }
                 socket.emit("join_match", JSONObject().put("matchId", matchId))
             }
@@ -443,7 +446,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 socket.connect()
             } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(ctx, "Connection: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, ctx.getString(R.string.connection_failed) + ": ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -465,7 +468,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 }
                 isStreamingState = false
                 restoreBrightness()
-                Toast.makeText(ctx, "Orientamento cambiato: ricrea RTMP...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, ctx.getString(R.string.orientation_changed_error), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -572,7 +575,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             }
 
                             rtmpCamera.glInterface.addFilter(imageFilter)
-                            rtmpCamera.startPreview()
+                            rtmpCamera.startPreview(cameraId)
                         }
 
                         openGlView
@@ -719,7 +722,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
 sealed class GetGameResult {
     data class Success(val team1Pts: Int, val team2Pts: Int, val team1Sets: Int, val team2Sets: Int) : GetGameResult()
-    data class Error(val message: String) : GetGameResult()
+    data class Error(val message: Int) : GetGameResult()
 }
 
 suspend fun makeGetGameRequest(token: String, matchId: String): GetGameResult = withContext(Dispatchers.IO) {
@@ -754,10 +757,10 @@ suspend fun makeGetGameRequest(token: String, matchId: String): GetGameResult = 
                 GetGameResult.Success(0, 0, 0, 0)
             }
         } else {
-            GetGameResult.Error("Errore caricamento dati match: ${response.code()}")
+            GetGameResult.Error(R.string.create_match_failed)
         }
     } catch (e: Exception) {
         Log.e("Stream", "Get game request failed", e)
-        GetGameResult.Error("Connessione fallita")
+        GetGameResult.Error(R.string.connection_failed)
     }
 }

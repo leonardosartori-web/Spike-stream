@@ -8,6 +8,8 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.text.font.FontWeight
+import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -90,15 +93,42 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            SpikeStreamDangerButton(
-                text = if (isLoading) stringResource(R.string.deleting) else stringResource(R.string.delete_account),
-                onClick = { showDialog = true },
-                enabled = !isLoading
+            Spacer(Modifier.height(40.dp))
+
+            Text(
+                stringResource(R.string.account_settings_title),
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
             )
+
+            Spacer(Modifier.height(40.dp))
+
+            SpikeStreamGlassCard {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stringResource(R.string.delete_account),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.delete_account_warning),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    SpikeStreamDangerButton(
+                        text = if (isLoading) stringResource(R.string.deleting) else stringResource(R.string.delete_account),
+                        onClick = { showDialog = true },
+                        enabled = !isLoading,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 

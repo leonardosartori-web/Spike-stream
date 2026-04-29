@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.leonardos.spikestream
 
 import com.leonardos.spikestream.BuildConfig
@@ -7,6 +9,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -34,11 +38,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -74,6 +85,7 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
 import com.leonardos.spikestream.ui.theme.SpikeStreamSecondaryButton
@@ -90,6 +102,8 @@ sealed class InviteResult {
     data class Success(val link: String) : InviteResult()
     data class Error(val messageResId: Int) : InviteResult()
 }
+
+data class CameraInfo(val id: String, val name: String, val facing: Int)
 
 class MatchOptionsActivity : ComponentActivity() {
 
@@ -212,127 +226,191 @@ fun MatchOptionsScreen(
     val token by tokenManager.tokenFlow.collectAsState(initial = null)
 
     SpikeStreamScreen {
+        var selectedPosition by remember { mutableStateOf("BOTTOM_LEFT") }
+        var selectedCameraId by remember { mutableStateOf("0") }
+
+        val cameras = remember {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val list = mutableListOf<CameraInfo>()
+            try {
+                for (id in cameraManager.cameraIdList) {
+                    val characteristics = cameraManager.getCameraCharacteristics(id)
+                    val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
+                    val name = when (facing) {
+                        CameraCharacteristics.LENS_FACING_BACK -> context.getString(R.string.camera_back)
+                        CameraCharacteristics.LENS_FACING_FRONT -> context.getString(R.string.camera_front)
+                        CameraCharacteristics.LENS_FACING_EXTERNAL -> context.getString(R.string.camera_external)
+                        else -> context.getString(R.string.camera_unknown, id)
+                    }
+                    list.add(CameraInfo(id, name, facing ?: -1))
+                }
+            } catch (e: Exception) {
+                Log.e("Camera", "Error listing cameras", e)
+            }
+            list
+        }
+
         val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-        Text(
-            text = "$teamA vs $teamB",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp)
-        )
-        
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        ) {
-            // Mask the stream key for better security on screen
-            val maskedUrl = if (rtmpUrl.contains("?")) {
-                rtmpUrl.substringBefore("?") + " / *****"
-            } else if (rtmpUrl.length > 50) {
-                rtmpUrl.take(45) + "..."
-            } else {
-                rtmpUrl
-            }
-            Text(
-                text = maskedUrl,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(12.dp)
-            )
-        }
 
-        TextButton(onClick = {
-            AlertDialog.Builder(context)
-                .setTitle(context.getString(R.string.score_editing_title_info))
-                .setMessage(
-                    HtmlCompat.fromHtml(
-                    context.getString(R.string.score_editing_full_info),
-                    HtmlCompat.FROM_HTML_MODE_LEGACY
-                ))
-                .setPositiveButton("OK", null)
-                .show()
-        }) {
             Text(
-                text = context.getString(R.string.score_editing_title_info),
-                color = com.leonardos.spikestream.ui.theme.AccentCyan
+                text = "$teamA vs $teamB",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+                textAlign = TextAlign.Center
             )
-        }
-        SpikeStreamSecondaryButton(
-            text = stringResource(R.string.generate_link),
-            onClick = {
-                val ad = rewardedAd
-                if (ad != null) {
-                    ad.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            onRewardedAdConsumed()
-                            handleInviteLink(context, token!!, matchId, scope)
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "$rtmpUrl",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            SpikeStreamGlassCard {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stringResource(R.string.invite_scorers_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.invite_scorers_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    SpikeStreamSecondaryButton(
+                        text = stringResource(R.string.generate_link),
+                        onClick = {
+                            val ad = rewardedAd
+                            if (ad != null) {
+                                ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                                    override fun onAdDismissedFullScreenContent() {
+                                        onRewardedAdConsumed()
+                                        handleInviteLink(context, token!!, matchId, scope)
+                                    }
+                                    override fun onAdFailedToShowFullScreenContent(p0: AdError) {
+                                        onRewardedAdConsumed()
+                                        handleInviteLink(context, token!!, matchId, scope)
+                                    }
+                                }
+                                ad.show(activity) { /* user earned reward */ }
+                            } else {
+                                handleInviteLink(context, token!!, matchId, scope)
+                            }
                         }
-                        override fun onAdFailedToShowFullScreenContent(p0: AdError) {
-                            onRewardedAdConsumed()
-                            handleInviteLink(context, token!!, matchId, scope)
-                        }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Text(
+                text = stringResource(R.string.overlay_position_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = stringResource(R.string.overlay_position_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            OverlayPositionPicker(
+                selectedPosition = selectedPosition,
+                onPositionSelected = { selectedPosition = it }
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            Text(
+                text = stringResource(R.string.camera_selection_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = stringResource(R.string.camera_selection_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.Start)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            CameraPicker(
+                cameras = cameras,
+                selectedCameraId = selectedCameraId,
+                onCameraSelected = { selectedCameraId = it }
+            )
+
+            Spacer(Modifier.height(40.dp))
+
+            SpikeStreamPrimaryButton(
+                text = stringResource(R.string.launch_stream),
+                onClick = {
+                    val intent = Intent(context, StreamActivity::class.java).apply {
+                        putExtra("TEAM_1", teamA)
+                        putExtra("TEAM_2", teamB)
+                        putExtra("RTMP_URL", rtmpUrl)
+                        putExtra("MATCH_ID", matchId)
+                        putExtra("OVERLAY_POSITION", selectedPosition)
+                        putExtra("CAMERA_ID", selectedCameraId)
                     }
-                    ad.show(activity) { /* user earned reward */ }
-                } else {
-                    handleInviteLink(context, token!!, matchId, scope)
+                    context.startActivity(intent)
                 }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            TextButton(onClick = {
+                AlertDialog.Builder(context)
+                    .setTitle(context.getString(R.string.score_editing_title_info))
+                    .setMessage(HtmlCompat.fromHtml(
+                        context.getString(R.string.score_editing_full_info),
+                        HtmlCompat.FROM_HTML_MODE_LEGACY
+                    ))
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+            }) {
+                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.score_editing_title_info))
             }
-        )
-
-        var selectedPosition by remember { mutableStateOf("BOTTOM_LEFT") }
-
-        Text(
-            text = stringResource(R.string.overlay_position_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = stringResource(R.string.overlay_position_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-            textAlign = TextAlign.Center
-        )
-
-        OverlayPositionPicker(
-            selectedPosition = selectedPosition,
-            onPositionSelected = { selectedPosition = it }
-        )
-
-        SpikeStreamPrimaryButton(
-            text = stringResource(R.string.launch_stream),
-            onClick = {
-                val intent = Intent(context, StreamActivity::class.java).apply {
-                    putExtra("TEAM_1", teamA)
-                    putExtra("TEAM_2", teamB)
-                    putExtra("RTMP_URL", rtmpUrl)
-                    putExtra("MATCH_ID", matchId)
-                    putExtra("OVERLAY_POSITION", selectedPosition)
-                }
-                context.startActivity(intent)
-            }
-        )
+            
+            Spacer(Modifier.height(40.dp))
         }
     }
 }
+
 
 @Composable
 fun OverlayPositionPicker(
     selectedPosition: String,
     onPositionSelected: (String) -> Unit
 ) {
-    val accent = com.leonardos.spikestream.ui.theme.AccentCyan
+    val accent = MaterialTheme.colorScheme.secondary
     val labelMap = mapOf(
         "TOP_LEFT"     to stringResource(R.string.pos_top_left),
         "TOP_RIGHT"    to stringResource(R.string.pos_top_right),
@@ -530,10 +608,6 @@ fun handleInviteLink(
 }
 
 
-
-
-
-
 suspend fun makePostInviteLinkRequest(token: String, matchId: String): InviteResult = withContext(
     Dispatchers.IO) {
     try {
@@ -561,3 +635,70 @@ suspend fun makePostInviteLinkRequest(token: String, matchId: String): InviteRes
     }
 }
 
+@Composable
+fun CameraPicker(
+    cameras: List<CameraInfo>,
+    selectedCameraId: String,
+    onCameraSelected: (String) -> Unit
+) {
+    val accent = MaterialTheme.colorScheme.secondary
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        cameras.forEach { camera ->
+            val isSelected = selectedCameraId == camera.id
+            val containerColor by animateColorAsState(
+                targetValue = if (isSelected) accent.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                label = "cameraBg"
+            )
+            val borderColor by animateColorAsState(
+                targetValue = if (isSelected) accent else Color.White.copy(alpha = 0.15f),
+                label = "cameraBorder"
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(containerColor)
+                    .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
+                    .clickable { onCameraSelected(camera.id) }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val icon = when (camera.facing) {
+                    CameraCharacteristics.LENS_FACING_FRONT -> "🤳"
+                    CameraCharacteristics.LENS_FACING_BACK -> "📷"
+                    else -> "📹"
+                }
+
+                Text(icon, fontSize = 20.sp)
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = camera.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) accent else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "ID: ${camera.id}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}

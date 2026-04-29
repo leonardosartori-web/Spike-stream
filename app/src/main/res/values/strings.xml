@@ -139,4 +139,41 @@
     <string name="invite_link">Invite Link</string>
     <string name="invite_link_error">Unable to generate the link. Please try again.</string>
     <string name="connection_failed">Connection failed. Check your network.</string>
+
+    <!-- New Strings -->
+    <string name="app_tagline">Pro Level Volleyball Streaming</string>
+    <string name="info_app">Info app</string>
+    <string name="session_expired">Session expired. Log in again.</string>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_subtitle">Manage your live streams</string>
+    <string name="new_match_fab">NEW MATCH</string>
+    <string name="create_account_title">CREATE ACCOUNT</string>
+    <string name="register_success_detailed">Success! Check your email to confirm.</string>
+    <string name="register_failed">Registration failed. Check your details and try again.</string>
+    <string name="login_failed">Invalid credentials. Try again or choose another method.</string>
+    <string name="configure_stream_subtitle">Configure your stream details</string>
+    <string name="match_details_title">Match Details</string>
+    <string name="streaming_url_title">Streaming URL</string>
+    <string name="url_rtmp_label">URL RTMP</string>
+    <string name="token_not_found">Token not available</string>
+    <string name="create_match_failed">Creation failed. Please try again.</string>
+    <string name="invite_scorers_title">Invite Scorers</string>
+    <string name="invite_scorers_desc">Share this match with your team to let them manage the score live.</string>
+    <string name="support_project_title">Support the Project</string>
+    <string name="support_project_desc">SpikeStream is free and open source. Your support helps keep the servers running!</string>
+    <string name="app_version_footer">v1.3 - Powered by Spikestream</string>
+    <string name="account_settings_title">Account Settings</string>
+    <string name="delete_account_warning">Warning: This action is permanent and cannot be undone. All your data will be deleted.</string>
+    <string name="connecting">Connecting...</string>
+    <string name="orientation_changed_error">Orientation changed: restarting RTMP...</string>
+    <string name="powered_by">Powered by SPIKESTREAM</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <!-- Camera Selection -->
+    <string name="camera_selection_title">Camera Input</string>
+    <string name="camera_selection_subtitle">Choose which camera to use for streaming</string>
+    <string name="camera_back">Back Camera</string>
+    <string name="camera_front">Front Camera</string>
+    <string name="camera_external">External Camera</string>
+    <string name="camera_unknown">Camera %1$s</string>
 </resources>

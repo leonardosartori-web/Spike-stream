@@ -38,6 +38,8 @@ class ScoreOverlayRenderer(
     private val footerRatio = 0.5f
     private val footerSpacing = 10f
 
+    private val watermarkText: String = context.getString(R.string.powered_by)
+
     // 🎨 Paint
     private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(240, 255, 255, 255) // White background
@@ -185,7 +187,7 @@ class ScoreOverlayRenderer(
         val footerBaselineY = footerTop + (footerHeight + footerSpacing) / 2
         
         canvas.drawText(
-            "Powered by SPIKESTREAM",
+            watermarkText,
             bitmapWidth - padding,
             footerBaselineY - (watermarkPaint.ascent() + watermarkPaint.descent()) / 2,
             watermarkPaint

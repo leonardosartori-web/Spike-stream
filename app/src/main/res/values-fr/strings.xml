@@ -139,4 +139,41 @@
     <string name="invite_link">Lien d\'invitation</string>
     <string name="invite_link_error">Impossible de générer le lien. Veuillez réessayer.</string>
     <string name="connection_failed">Connexion échouée. Vérifiez votre réseau.</string>
+
+    <!-- New Strings -->
+    <string name="app_tagline">Streaming de volleyball de niveau pro</string>
+    <string name="info_app">Infos sur l\'appli</string>
+    <string name="session_expired">Session expirée. Connectez-vous à nouveau.</string>
+    <string name="dashboard_title">Tableau de bord</string>
+    <string name="dashboard_subtitle">Gérez vos diffusions en direct</string>
+    <string name="new_match_fab">NOUVEAU MATCH</string>
+    <string name="create_account_title">CRÉER UN COMPTE</string>
+    <string name="register_success_detailed">Succès ! Vérifiez votre e-mail pour confirmer.</string>
+    <string name="register_failed">Échec de l\'inscription. Vérifiez vos informations et réessayez.</string>
+    <string name="login_failed">Identifiants invalides. Réessayez ou choisissez une autre méthode.</string>
+    <string name="configure_stream_subtitle">Configurez les détails de votre stream</string>
+    <string name="match_details_title">Détails du match</string>
+    <string name="streaming_url_title">URL de streaming</string>
+    <string name="url_rtmp_label">URL RTMP</string>
+    <string name="token_not_found">Jeton non disponible</string>
+    <string name="create_match_failed">Échec de la création. Veuillez réessayer.</string>
+    <string name="invite_scorers_title">Inviter des marqueurs</string>
+    <string name="invite_scorers_desc">Partagez ce match avec votre équipe pour leur permettre de gérer le score en direct.</string>
+    <string name="support_project_title">Soutenir le projet</string>
+    <string name="support_project_desc">SpikeStream est gratuit et open source. Votre soutien aide à maintenir les serveurs en marche !</string>
+    <string name="app_version_footer">v1.3 - Propulsé par Spikestream</string>
+    <string name="account_settings_title">Paramètres du compte</string>
+    <string name="delete_account_warning">Attention : Cette action est permanente et irréversible. Toutes vos données seront supprimées.</string>
+    <string name="connecting">Connexion en cours...</string>
+    <string name="orientation_changed_error">Orientation changée : redémarrage RTMP...</string>
+    <string name="powered_by">Propulsé par SPIKESTREAM</string>
+    <string name="email">E-mail</string>
+    <string name="password">Mot de passe</string>
+    <!-- Camera Selection -->
+    <string name="camera_selection_title">Entrée Caméra</string>
+    <string name="camera_selection_subtitle">Choisissez la caméra à utiliser pour le streaming</string>
+    <string name="camera_back">Caméra Arrière</string>
+    <string name="camera_front">Caméra Avant</string>
+    <string name="camera_external">Caméra Externe</string>
+    <string name="camera_unknown">Camera %1$s</string>
 </resources>
