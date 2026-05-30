@@ -4,7 +4,7 @@ import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import android.os.Bundle
-import android.util.Log
+import com.leonardos.spikestream.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +26,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import com.leonardos.spikestream.ui.theme.SpikeStreamDialog
 
 class SettingsActivity : ComponentActivity() {
 
@@ -133,12 +136,19 @@ fun SettingsScreen(
     }
 
     if (showDialog) {
-        AlertDialog(
+        SpikeStreamDialog(
             onDismissRequest = { showDialog = false },
-            title = { Text(stringResource(R.string.confirm_deletion)) },
-            text = { Text(stringResource(R.string.delete_confirmation_text)) },
+            title = stringResource(R.string.confirm_deletion),
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp)) },
+            content = {
+                Text(
+                    text = stringResource(R.string.delete_confirmation_text),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+            },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         showDialog = false
                         isLoading = true
@@ -148,9 +158,11 @@ fun SettingsScreen(
                                 onAccountDeleted()
                             }
                         }
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete_account), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

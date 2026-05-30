@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.leonardos.spikestream">
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -38,6 +39,9 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${admobAppId}" />
 
+        <meta-data android:name="com.facebook.sdk.ApplicationId" android:value="${facebookAppId}"/>
+        <meta-data android:name="com.facebook.sdk.ClientToken" android:value="${facebookClientToken}"/>
+
 
         <!--
             Inner activities are explicitly NOT exported: they can only be started
@@ -68,18 +72,20 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <!-- Custom scheme for OAuth/deep-link token return -->
-                <data
-                    android:scheme="spikestream"
-                    android:host="spikestream.tooolky.com"
-                    android:pathPrefix="/" />
+                <!-- Google App Links for secure authentication -->
+                <data android:scheme="https" />
+                <data android:host="spikestream.tooolky.com" />
+                <data android:pathPrefix="/auth/app-auth" />
+                <data android:scheme="http" />
+                <data android:host="spikestream.tooolky.com" />
+                <data android:pathPrefix="/auth/app-auth" />
             </intent-filter>
+
         </activity>
 
     </application>

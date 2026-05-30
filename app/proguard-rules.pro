@@ -20,3 +20,12 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 -dontwarn org.slf4j.impl.StaticLoggerBinder
+
+# Strip all Log.* calls in production
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+    public static *** w(...);
+    public static *** e(...);
+}

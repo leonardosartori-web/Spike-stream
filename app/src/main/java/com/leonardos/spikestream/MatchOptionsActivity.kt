@@ -2,9 +2,7 @@
 
 package com.leonardos.spikestream
 
-import com.leonardos.spikestream.BuildConfig
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -13,7 +11,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
+import com.leonardos.spikestream.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,18 +34,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -65,7 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -79,9 +71,6 @@ import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.rewarded.RewardItem
-import com.google.android.gms.ads.rewarded.RewardedAd
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
@@ -89,7 +78,15 @@ import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
 import com.leonardos.spikestream.ui.theme.SpikeStreamSecondaryButton
-import com.leonardos.spikestream.ui.theme.SpikeStreamOutlinedButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.graphics.toArgb
+import com.leonardos.spikestream.ui.theme.SpikeStreamDialog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -97,6 +94,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
+import yuku.ambilwarna.AmbilWarnaDialog
+
 
 sealed class InviteResult {
     data class Success(val link: String) : InviteResult()
@@ -210,6 +209,12 @@ class MatchOptionsActivity : ComponentActivity() {
 
 }
 
+fun findDefaultCamera(cameras: List<CameraInfo>): String {
+    return cameras.firstOrNull {
+        it.facing == CameraCharacteristics.LENS_FACING_BACK
+    }?.id ?: cameras.firstOrNull()?.id ?: "0"
+}
+
 @Composable
 fun MatchOptionsScreen(
     teamA: String,
@@ -225,9 +230,43 @@ fun MatchOptionsScreen(
     val scope = rememberCoroutineScope()
     val token by tokenManager.tokenFlow.collectAsState(initial = null)
 
+    var overlayStyle by remember {
+        mutableStateOf(DefaultOverlayStyle.classic)
+    }
+
+    LaunchedEffect(teamA, teamB) {
+
+        OverlayStyleStorage.getTeamAccent(
+            context,
+            teamA,
+            DefaultOverlayStyle.classic.team1.accent
+        ).collect { color ->
+
+            overlayStyle = overlayStyle.copy(
+                team1 = overlayStyle.team1.copy(accent = color)
+            )
+        }
+    }
+
+    LaunchedEffect(teamA, teamB) {
+
+        OverlayStyleStorage.getTeamAccent(
+            context,
+            teamB,
+            DefaultOverlayStyle.classic.team2.accent
+        ).collect { color ->
+
+            overlayStyle = overlayStyle.copy(
+                team2 = overlayStyle.team2.copy(accent = color)
+            )
+        }
+    }
+
     SpikeStreamScreen {
         var selectedPosition by remember { mutableStateOf("BOTTOM_LEFT") }
-        var selectedCameraId by remember { mutableStateOf("0") }
+        var selectedCameraId by remember { mutableStateOf<String?>(null) }
+        var showInfoDialog by remember { mutableStateOf(false) }
+        var showDeleteDialog by remember { mutableStateOf(false) }
 
         val cameras = remember {
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -250,6 +289,12 @@ fun MatchOptionsScreen(
             list
         }
 
+        LaunchedEffect(cameras) {
+            if (selectedCameraId == null && cameras.isNotEmpty()) {
+                selectedCameraId = findDefaultCamera(cameras)
+            }
+        }
+
         val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
@@ -258,12 +303,90 @@ fun MatchOptionsScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
 
-            Text(
-                text = "$teamA vs $teamB",
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-                textAlign = TextAlign.Center
-            )
+                TeamAccentEditor(
+                    currentColor = Color(overlayStyle.team1.accent),
+                    onColorSelected = { color ->
+
+                        val intColor = color.toArgb()
+
+                        overlayStyle = overlayStyle.copy(
+                            team1 = overlayStyle.team1.copy(accent = intColor)
+                        )
+
+                        scope.launch {
+                            OverlayStyleStorage.setTeamAccent(
+                                context,
+                                teamA,
+                                intColor
+                            )
+                        }
+                    }
+                )
+
+                Spacer(Modifier.width(12.dp))
+
+                Text(
+                    text = "$teamA vs $teamB",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.width(12.dp))
+
+                TeamAccentEditor(
+                    currentColor = Color(overlayStyle.team2.accent),
+                    onColorSelected = { color ->
+
+                        val intColor = color.toArgb()
+
+                        overlayStyle = overlayStyle.copy(
+                            team2 = overlayStyle.team2.copy(accent = intColor)
+                        )
+
+                        scope.launch {
+                            OverlayStyleStorage.setTeamAccent(
+                                context,
+                                teamB,
+                                intColor
+                            )
+                        }
+                    }
+                )
+            }
+
+            TextButton(onClick = {
+
+                val intColor = android.graphics.Color.rgb(220, 38, 38)
+
+                overlayStyle = overlayStyle.copy(
+                    team1 = overlayStyle.team1.copy(accent = intColor),
+                    team2 = overlayStyle.team2.copy(accent = intColor)
+                )
+
+                scope.launch {
+
+                    OverlayStyleStorage.setTeamAccent(
+                        context,
+                        teamA,
+                        intColor
+                    )
+
+                    OverlayStyleStorage.setTeamAccent(
+                        context,
+                        teamB,
+                        intColor
+                    )
+                }
+            })
+            {
+                Text(stringResource(R.string.default_color))
+            }
 
             Spacer(Modifier.height(8.dp))
 
@@ -370,13 +493,16 @@ fun MatchOptionsScreen(
             SpikeStreamPrimaryButton(
                 text = stringResource(R.string.launch_stream),
                 onClick = {
+                    val cameraId = selectedCameraId ?: return@SpikeStreamPrimaryButton
                     val intent = Intent(context, StreamActivity::class.java).apply {
                         putExtra("TEAM_1", teamA)
                         putExtra("TEAM_2", teamB)
                         putExtra("RTMP_URL", rtmpUrl)
                         putExtra("MATCH_ID", matchId)
                         putExtra("OVERLAY_POSITION", selectedPosition)
-                        putExtra("CAMERA_ID", selectedCameraId)
+                        putExtra("CAMERA_ID", cameraId)
+                        putExtra("TEAM1_ACCENT", overlayStyle.team1.accent)
+                        putExtra("TEAM2_ACCENT", overlayStyle.team2.accent)
                     }
                     context.startActivity(intent)
                 }
@@ -384,24 +510,123 @@ fun MatchOptionsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            TextButton(onClick = {
-                AlertDialog.Builder(context)
-                    .setTitle(context.getString(R.string.score_editing_title_info))
-                    .setMessage(HtmlCompat.fromHtml(
-                        context.getString(R.string.score_editing_full_info),
-                        HtmlCompat.FROM_HTML_MODE_LEGACY
-                    ))
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
-            }) {
+            TextButton(onClick = { showInfoDialog = true }) {
                 Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.score_editing_title_info))
             }
-            
-            Spacer(Modifier.height(40.dp))
+
+            Spacer(Modifier.height(16.dp))
+
+            TextButton(
+                onClick = { showDeleteDialog = true },
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.Red.copy(alpha = 0.7f))
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.delete_match))
+            }
+
+            Spacer(Modifier.height(16.dp))
+        }
+
+        if (showInfoDialog) {
+            SpikeStreamDialog(
+                onDismissRequest = { showInfoDialog = false },
+                title = stringResource(R.string.score_editing_title_info),
+                icon = { Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) },
+                content = {
+                    Text(
+                        text = HtmlCompat.fromHtml(
+                            stringResource(R.string.score_editing_full_info),
+                            HtmlCompat.FROM_HTML_MODE_LEGACY
+                        ).toString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { showInfoDialog = false }) {
+                        Text(stringResource(android.R.string.ok), fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
+        }
+
+        if (showDeleteDialog) {
+            SpikeStreamDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = stringResource(R.string.delete_confirm_title),
+                icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp)) },
+                content = {
+                    Text(
+                        text = stringResource(R.string.delete_confirm_msg),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteDialog = false
+                            scope.launch {
+                                val success = makeDeleteMatchRequest(token!!, matchId)
+                                if (success) {
+                                    Toast.makeText(context, context.getString(R.string.delete_success), Toast.LENGTH_SHORT).show()
+                                    activity.finish()
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.connection_failed), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(stringResource(R.string.delete_match), color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
         }
     }
+}
+
+@Composable
+fun TeamAccentEditor(
+    currentColor: Color,
+    onColorSelected: (Color) -> Unit
+) {
+    val context = LocalContext.current
+    var colorInt = currentColor.toArgb()
+
+
+    Box(
+        modifier = Modifier
+            .size(18.dp)
+            .clip(CircleShape)
+            .background(currentColor)
+            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+            .clickable {
+
+                val dialog = AmbilWarnaDialog(
+                    context,
+                    colorInt,
+                    object : AmbilWarnaDialog.OnAmbilWarnaListener {
+                        override fun onOk(dialog: AmbilWarnaDialog?, color: Int) {
+                            onColorSelected(Color(color))
+                        }
+
+                        override fun onCancel(dialog: AmbilWarnaDialog?) {}
+                    }
+                )
+
+                dialog.show()
+            }
+    )
 }
 
 
@@ -638,7 +863,7 @@ suspend fun makePostInviteLinkRequest(token: String, matchId: String): InviteRes
 @Composable
 fun CameraPicker(
     cameras: List<CameraInfo>,
-    selectedCameraId: String,
+    selectedCameraId: String?,
     onCameraSelected: (String) -> Unit
 ) {
     val accent = MaterialTheme.colorScheme.secondary
@@ -700,5 +925,22 @@ fun CameraPicker(
                 }
             }
         }
+    }
+}
+
+suspend fun makeDeleteMatchRequest(token: String, matchId: String): Boolean = withContext(Dispatchers.IO) {
+    try {
+        val client = getHttpClient()
+        val request = Request.Builder()
+            .url("${Constants.BASE_URL}/games/$matchId")
+            .addHeader("Authorization", "Bearer $token")
+            .delete()
+            .build()
+
+        val response = client.newCall(request).execute()
+        response.isSuccessful
+    } catch (e: Exception) {
+        Log.e("DeleteMatch", "Delete match request failed", e)
+        false
     }
 }

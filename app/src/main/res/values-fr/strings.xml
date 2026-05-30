@@ -26,7 +26,7 @@
     <!-- Create Match -->
     <string name="create_match_title">Configurer le streaming</string>
     <string name="guide_button_hide">❌ Masquer le guide de streaming</string>
-    <string name="guide_button_show">ℹ️ Afficher le guide de streaming</string>
+    <string name="guide_button_show">Afficher le guide de streaming</string>
     <string name="guide_title">Comment configurer le streaming sur YouTube ou Twitch :</string>
     <string name="guide_body">
     <![CDATA[
@@ -139,6 +139,8 @@
     <string name="invite_link">Lien d\'invitation</string>
     <string name="invite_link_error">Impossible de générer le lien. Veuillez réessayer.</string>
     <string name="connection_failed">Connexion échouée. Vérifiez votre réseau.</string>
+    <string name="stream_connected">Streaming connecté !</string>
+    <string name="stream_disconnected">Déconnecté</string>
 
     <!-- New Strings -->
     <string name="app_tagline">Streaming de volleyball de niveau pro</string>
@@ -176,4 +178,23 @@
     <string name="camera_front">Caméra Avant</string>
     <string name="camera_external">Caméra Externe</string>
     <string name="camera_unknown">Camera %1$s</string>
+    <string name="yt_button_label">YOUTUBE</string>
+    <string name="recent_button_label">RÉCENTS</string>
+    <string name="recent_rtmp_title">RTMP Récents</string>
+    <string name="close_button">Fermer</string>
+    <string name="yt_load_success">YouTube RTMP chargé !</string>
+    <string name="yt_load_error">Impossible de trouver le flux YouTube. Vérifiez si le Live est activé.</string>
+    <string name="yt_rate_limit_error">Trop de requêtes. Réessayez dans quelques minutes.</string>
+    <string name="fb_load_success">RTMP Facebook chargé !</string>
+    <string name="fb_load_error">Erreur Facebook RTMP. Vérifiez vos permissions.</string>
+    <string name="yt_login_error">Échec de la connexion Google</string>
+    <string name="delete_match">Supprimer le Match</string>
+    <string name="delete_confirm_title">Êtes-vous sûr ?</string>
+    <string name="delete_confirm_msg">Cette action ne può pas être annulée.</string>
+    <string name="delete_success">Match supprimé con succès</string>
+    <string name="rtmp_explanation">L\'URL RTMP est le canal de diffusion. En la collant ici, l\'application se connectera à votre plateforme pour diffuser le match en direct.</string>
+    <string name="use_recent_rtmp">Utiliser une adresse récente (recommandé) :</string>
+    <string name="or_social_rtmp">Ou récupérer l\'adresse depuis un réseau social :</string>
+    <string name="recent_loaded_toast">Adresse récente chargée !</string>
+    <string name="default_color">Default color</string>
 </resources>

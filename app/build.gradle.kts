@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 // Load local.properties so AdMob IDs never live in committed source
@@ -14,29 +15,37 @@ val localProps = Properties().also { props ->
 
 android {
     namespace = "com.leonardos.spikestream"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.leonardos.spikestream"
         minSdk = 24
         targetSdk = 35
-        versionCode = 29
-        versionName = "1.3"
+        versionCode = 40
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // AdMob IDs injected from local.properties — never written into source files
         buildConfigField("String", "ADMOB_APP_ID",
-            "\"${localProps["ADMOB_APP_ID"] ?: ""}\"")
+            "\"${localProps.getProperty("ADMOB_APP_ID") ?: ""}\"")
         buildConfigField("String", "ADMOB_APP_OPEN_ID",
-            "\"${localProps["ADMOB_APP_OPEN_ID"] ?: ""}\"")
+            "\"${localProps.getProperty("ADMOB_APP_OPEN_ID") ?: ""}\"")
         buildConfigField("String", "ADMOB_REWARDED_ID",
-            "\"${localProps["ADMOB_REWARDED_ID"] ?: ""}\"")
+            "\"${localProps.getProperty("ADMOB_REWARDED_ID") ?: ""}\"")
         buildConfigField("String", "ADMOB_REWARDED_INTERSTITIAL_ID",
-            "\"${localProps["ADMOB_REWARDED_INTERSTITIAL_ID"] ?: ""}\"")
+            "\"${localProps.getProperty("ADMOB_REWARDED_INTERSTITIAL_ID") ?: ""}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID",
+            "\"${localProps.getProperty("GOOGLE_WEB_CLIENT_ID") ?: ""}\"")
+        buildConfigField("String", "FACEBOOK_APP_ID",
+            "\"${localProps.getProperty("FACEBOOK_APP_ID") ?: ""}\"")
+        buildConfigField("String", "FACEBOOK_CLIENT_TOKEN",
+            "\"${localProps.getProperty("FACEBOOK_CLIENT_TOKEN") ?: ""}\"")
 
         // AdMob App ID manifest placeholder (read from BuildConfig value above)
-        manifestPlaceholders["admobAppId"] = localProps["ADMOB_APP_ID"] ?: ""
+        manifestPlaceholders["admobAppId"] = localProps.getProperty("ADMOB_APP_ID") ?: ""
+        manifestPlaceholders["facebookAppId"] = localProps.getProperty("FACEBOOK_APP_ID") ?: ""
+        manifestPlaceholders["facebookClientToken"] = localProps.getProperty("FACEBOOK_CLIENT_TOKEN") ?: ""
     }
 
     buildTypes {
@@ -46,6 +55,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
         }
     }
     compileOptions {
@@ -62,6 +74,10 @@ android {
 }
 
 dependencies {
+
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+    implementation("com.google.firebase:firebase-config-ktx")
+    implementation("com.github.yukuku:ambilwarna:2.0.1")
 
     implementation("com.github.pedroSG94.rtmp-rtsp-stream-client-java:rtplibrary:2.2.6")
     implementation("io.socket:socket.io-client:2.1.0")                          // updated 2.0.1 → 2.1.0
@@ -93,4 +109,11 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // Google Auth
+    implementation(libs.google.auth)
+
+    // Facebook Login
+    implementation("com.facebook.android:facebook-login:latest.release")
+
 }

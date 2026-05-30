@@ -26,7 +26,7 @@
     <!-- Create Match -->
     <string name="create_match_title">Configure Streaming</string>
     <string name="guide_button_hide">❌ Hide streaming guide</string>
-    <string name="guide_button_show">ℹ️ Show streaming guide</string>
+    <string name="guide_button_show">Show streaming guide</string>
     <string name="guide_title">How to set up streaming on YouTube or Twitch:</string>
     <string name="guide_body">
     <![CDATA[
@@ -139,6 +139,8 @@
     <string name="invite_link">Invite Link</string>
     <string name="invite_link_error">Unable to generate the link. Please try again.</string>
     <string name="connection_failed">Connection failed. Check your network.</string>
+    <string name="stream_connected">Streaming connected!</string>
+    <string name="stream_disconnected">Disconnected</string>
 
     <!-- New Strings -->
     <string name="app_tagline">Pro Level Volleyball Streaming</string>
@@ -176,4 +178,23 @@
     <string name="camera_front">Front Camera</string>
     <string name="camera_external">External Camera</string>
     <string name="camera_unknown">Camera %1$s</string>
+    <string name="yt_button_label">YOUTUBE</string>
+    <string name="recent_button_label">RECENT</string>
+    <string name="recent_rtmp_title">Recent RTMPs</string>
+    <string name="close_button">Close</string>
+    <string name="yt_load_success">YouTube RTMP loaded!</string>
+    <string name="yt_load_error">Could not find YouTube stream. Check if Live is enabled.</string>
+    <string name="yt_rate_limit_error">Too many requests. Try again in a few minutes.</string>
+    <string name="fb_load_success">Facebook RTMP loaded!</string>
+    <string name="fb_load_error">Facebook RTMP error. Check your permissions.</string>
+    <string name="yt_login_error">Google Login failed</string>
+    <string name="delete_match">Delete Match</string>
+    <string name="delete_confirm_title">Are you sure?</string>
+    <string name="delete_confirm_msg">This action cannot be undone.</string>
+    <string name="delete_success">Match deleted successfully</string>
+    <string name="rtmp_explanation">The RTMP URL is the broadcast channel. By pasting it here, the app will connect to your platform (like YouTube, Facebook, or Twitch) to transmit the live stream of the match.</string>
+    <string name="use_recent_rtmp">Use a recently used address (recommended):</string>
+    <string name="or_social_rtmp">Or load the address from a social network:</string>
+    <string name="recent_loaded_toast">Recent address loaded!</string>
+    <string name="default_color">Default colors</string>
 </resources>

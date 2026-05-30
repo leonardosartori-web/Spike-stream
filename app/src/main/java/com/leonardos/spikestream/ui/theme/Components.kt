@@ -1,9 +1,11 @@
 package com.leonardos.spikestream.ui.theme
 
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -117,7 +119,8 @@ fun SpikeStreamTextField(
     singleLine: Boolean = true,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    leadingIcon: @Composable (() -> Unit)? = null
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -127,6 +130,7 @@ fun SpikeStreamTextField(
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         leadingIcon = leadingIcon,
+        trailingIcon = trailingIcon,
         modifier = modifier,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -296,3 +300,53 @@ fun SpikeStreamDangerButton(
     }
 }
 
+/**
+ * A professional, high-end dialog with glassmorphism and modern styling.
+ */
+@Composable
+fun SpikeStreamDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    icon: @Composable (() -> Unit)? = null,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+        tonalElevation = 12.dp,
+        icon = icon,
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            content()
+        },
+        confirmButton = {
+            Box(modifier = Modifier.padding(bottom = 8.dp, end = 8.dp)) {
+                confirmButton()
+            }
+        },
+        dismissButton = dismissButton?.let {
+            {
+                Box(modifier = Modifier.padding(bottom = 8.dp, start = 8.dp)) {
+                    it()
+                }
+            }
+        },
+        modifier = Modifier
+            .border(
+                BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                RoundedCornerShape(28.dp)
+            )
+            .shadow(24.dp, RoundedCornerShape(28.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    )
+}

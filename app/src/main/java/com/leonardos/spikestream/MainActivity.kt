@@ -8,7 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
+import com.leonardos.spikestream.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -81,31 +81,48 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 private val Context.dataStore by preferencesDataStore(name = "user_prefs")
 
 class TokenManager(private val context: Context) {
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    private val sharedPrefs = EncryptedSharedPreferences.create(
+        context,
+        "secure_user_prefs",
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
+
+    private val _tokenFlow = MutableStateFlow<String?>(sharedPrefs.getString("auth_token", null))
+    val tokenFlow: Flow<String?> = _tokenFlow.asStateFlow()
+
     companion object {
-        val TOKEN_KEY = stringPreferencesKey("auth_token")
         // Regex that validates the three-part Base64url JWT structure
         private val JWT_REGEX = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
 
         fun isValidJwt(token: String): Boolean = JWT_REGEX.matches(token)
     }
 
-    val tokenFlow: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[TOKEN_KEY]
-    }
-
     suspend fun saveToken(token: String) {
-        context.dataStore.edit { prefs ->
-            prefs[TOKEN_KEY] = token
+        withContext(Dispatchers.IO) {
+            sharedPrefs.edit().putString("auth_token", token).apply()
+            _tokenFlow.value = token
         }
     }
 
     suspend fun clearToken() {
-        context.dataStore.edit { prefs ->
-            prefs.remove(TOKEN_KEY)
+        withContext(Dispatchers.IO) {
+            sharedPrefs.edit().remove("auth_token").apply()
+            _tokenFlow.value = null
         }
     }
 }
@@ -133,6 +150,8 @@ data class StreamInfo(
 
 class MainActivity : ComponentActivity() {
 
+    private var isAppStarted = false
+    private var hasAdShown = false
     private var isMobileAdsInitializeCalled = AtomicBoolean(false)
     private lateinit var consentInformation: ConsentInformation
     private lateinit var tokenManager: TokenManager
@@ -141,11 +160,15 @@ class MainActivity : ComponentActivity() {
     private val updateRequestCode = 123
     lateinit var rewardedAd: RewardedAd
     var isRewardedAdLoaded = false
+    private val refreshTrigger = mutableStateOf(0)
+
+    private val TAG_APP_OPEN = "APP_OPEN_FLOW"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         appUpdateManager = AppUpdateManagerFactory.create(this)
+
         checkForUpdates()
 
         setContent {
@@ -153,8 +176,7 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
-                )
-                {
+                ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -165,42 +187,62 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // GDPR Consent Flow Initialization
+        RemoteConfigManager.init {
+            runOnUiThread {
+                if (RemoteConfigManager.isAdsEnabled()) {
+                    initializeConsentFlow()
+                } else {
+                    startApp()
+                }
+            }
+        }
+
+        fetchRemoteBaseUrl()
+    }
+
+    private fun startApp() {
+        Log.d(TAG_APP_OPEN, "startApp() called | hasStartedApp=$isAppStarted")
+
+        if (isAppStarted) {
+            Log.d(TAG_APP_OPEN, "startApp() blocked (already started)")
+            return
+        }
+
+        isAppStarted = true
+
+        Log.d(TAG_APP_OPEN, "Launching startCompose()")
+
+        runOnUiThread {
+            startCompose()
+        }
+    }
+
+    private fun initializeConsentFlow() {
+
         val params = ConsentRequestParameters.Builder()
             .setTagForUnderAgeOfConsent(false)
             .build()
+
         consentInformation = UserMessagingPlatform.getConsentInformation(this)
+
         consentInformation.requestConsentInfoUpdate(
             this,
             params,
             {
-                UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) { loadAndShowError ->
-                    if (loadAndShowError != null) {
-                        Log.w("AdMob", "Consent form error: ${loadAndShowError.message}")
-                    }
+
+                UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) {
+
                     if (consentInformation.canRequestAds()) {
                         initializeMobileAdsSdk()
                     } else {
-                        startCompose()
+                        startApp()
                     }
                 }
             },
-            { requestError ->
-                Log.w("AdMob", "Consent info update failed: ${requestError.message}")
-                if (consentInformation.canRequestAds()) {
-                    initializeMobileAdsSdk()
-                } else {
-                    startCompose()
-                }
+            { error ->
+                startApp()
             }
         )
-
-        // Fallback or early start if already consented
-        if (consentInformation.canRequestAds()) {
-            initializeMobileAdsSdk()
-        }
-
-        fetchRemoteBaseUrl()
     }
 
     private fun fetchRemoteBaseUrl() {
@@ -227,38 +269,74 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initializeMobileAdsSdk() {
-        if (isMobileAdsInitializeCalled.getAndSet(true)) return
-        MobileAds.initialize(this) { }
-        loadAppOpenAd()
-        loadRewardedAd()
+
+        val already = isMobileAdsInitializeCalled.getAndSet(true)
+
+        if (already) return
+
+        MobileAds.initialize(this)
+
+        if (RemoteConfigManager.isAppOpenEnabled()) {
+            loadAppOpenAd()
+        } else {
+            startApp()
+        }
+
+        if (RemoteConfigManager.isRewardedEnabled()) {
+            loadRewardedAd()
+        }
     }
 
     private fun loadAppOpenAd() {
-        // Load and show the App Open ad once at startup
+
         val adRequest = AdRequest.Builder().build()
+
+        // ⏱ TIMEOUT 5 SECONDI
+        lifecycleScope.launch {
+
+            delay(5000)
+
+            if (!isAppStarted && !hasAdShown) {
+                startApp()
+            }
+        }
+
         AppOpenAd.load(
             this,
             BuildConfig.ADMOB_APP_OPEN_ID,
             adRequest,
             AppOpenAd.APP_OPEN_AD_ORIENTATION_PORTRAIT,
             object : AppOpenAd.AppOpenAdLoadCallback() {
+
                 override fun onAdLoaded(ad: AppOpenAd) {
+
+
+                    if (isAppStarted) {
+                        return
+                    }
+
+                    hasAdShown = true
+
                     ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+
                         override fun onAdDismissedFullScreenContent() {
-                            // After ad, show the content
-                            startCompose()
+                            startApp()
                         }
 
-                        override fun onAdFailedToShowFullScreenContent(p0: AdError) {
-                            startCompose()
+                        override fun onAdFailedToShowFullScreenContent(error: AdError) {
+                            startApp()
+                        }
+
+                        override fun onAdShowedFullScreenContent() {
+
                         }
                     }
+
                     ad.show(this@MainActivity)
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    // Fallback to app content
-                    startCompose()
+                    startApp()
                 }
             }
         )
@@ -276,7 +354,9 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        loadRewardedAd() // ricarica sempre
+        if (RemoteConfigManager.isRewardedEnabled()) {
+            loadRewardedAd()
+        }
     }
 
     private fun checkForUpdates() {
@@ -395,6 +475,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     DashboardScreen(
                         token = tokenState.value!!,
+                        refreshTrigger = refreshTrigger.value,
                         onCreateStreamClick = {
                             val intent = Intent(this@MainActivity, CreateMatchActivity::class.java)
                             startActivity(intent)
@@ -420,7 +501,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onRestart() {
         super.onRestart()
-        // Se vuoi fare qualcosa al ritorno in foreground
+        refreshTrigger.value++
     }
 }
 
@@ -668,6 +749,7 @@ suspend fun makeGetGamesRequest(token: String): GamesResult = withContext(Dispat
 @Composable
 fun DashboardScreen(
     token: String,
+    refreshTrigger: Int,
     onCreateStreamClick: () -> Unit,
     onTokenExpired: () -> Unit
 ) {
@@ -682,7 +764,6 @@ fun DashboardScreen(
             isRefreshing.value = true
             when (val result = makeGetGamesRequest(token)) {
                 is GamesResult.Success -> {
-                    streams.clear()
                     val streamInfos = result.games.map { json ->
                         StreamInfo(
                             teamA = json.getString("teamAName"),
@@ -691,7 +772,26 @@ fun DashboardScreen(
                             rtmpUrl = json.getString("rtmpUrl")
                         )
                     }
+                    streams.clear()
                     streams.addAll(streamInfos)
+                    
+                    // Sync recent RTMP list with current active matches
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+                            val prefs = EncryptedSharedPreferences.create(
+                                context,
+                                "secure_user_prefs",
+                                masterKey,
+                                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                            )
+                            val currentUrls = streamInfos.map { it.rtmpUrl }.filter { it.isNotBlank() }.toSet()
+                            prefs.edit().putStringSet("recent_rtmps", currentUrls).apply()
+                        } catch (e: Exception) {
+                            Log.e("Dashboard", "Failed to sync recent RTMPs", e)
+                        }
+                    }
                 }
                 is GamesResult.Error -> {
                     isRefreshing.value = false
@@ -706,7 +806,7 @@ fun DashboardScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshTrigger) {
         loadStreams()
     }
 
@@ -748,7 +848,10 @@ fun DashboardScreen(
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        if ((context as MainActivity).isRewardedAdLoaded) {
+                        if (
+                                RemoteConfigManager.isRewardedEnabled() &&
+                                (context as MainActivity).isRewardedAdLoaded
+                            ) {
                             (context as MainActivity).rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
                                 override fun onAdDismissedFullScreenContent() {
                                     (context as MainActivity).isRewardedAdLoaded = false

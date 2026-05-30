@@ -24,7 +24,7 @@
     <!-- Create Match -->
     <string name="create_match_title">Configura Streaming</string>
     <string name="guide_button_hide">❌ Nascondi guida per lo streaming</string>
-    <string name="guide_button_show">ℹ️ Mostra guida per lo streaming</string>
+    <string name="guide_button_show">Mostra guida per lo streaming</string>
     <string name="guide_title">Come configurare lo streaming su YouTube o Twitch:</string>
     <string name="guide_body">
     <![CDATA[
@@ -139,6 +139,8 @@
     <string name="invite_link">Link Invito</string>
     <string name="invite_link_error">Impossibile generare il link. Riprova.</string>
     <string name="connection_failed">Connessione non riuscita. Controlla la rete.</string>
+    <string name="stream_connected">Streaming connesso!</string>
+    <string name="stream_disconnected">Disconnesso</string>
 
     <!-- New Strings -->
     <string name="app_tagline">Streaming di Pallavolo Pro Level</string>
@@ -176,4 +178,23 @@
     <string name="camera_front">Camera Frontale</string>
     <string name="camera_external">Camera Esterna</string>
     <string name="camera_unknown">Camera %1$s</string>
+    <string name="yt_button_label">YOUTUBE</string>
+    <string name="recent_button_label">RECENTI</string>
+    <string name="recent_rtmp_title">RTMP Recenti</string>
+    <string name="close_button">Chiudi</string>
+    <string name="yt_load_success">YouTube RTMP caricato!</string>
+    <string name="yt_load_error">Impossibile trovare lo stream YouTube. Controlla che le Live siano attive.</string>
+    <string name="yt_rate_limit_error">Troppe richieste. Riprova tra qualche minuto.</string>
+    <string name="fb_load_success">RTMP Facebook caricato!</string>
+    <string name="fb_load_error">Errore Facebook RTMP. Controlla i tuoi permessi.</string>
+    <string name="yt_login_error">Login Google fallito</string>
+    <string name="delete_match">Elimina Match</string>
+    <string name="delete_confirm_title">Sei sicuro?</string>
+    <string name="delete_confirm_msg">Questa azione non può essere annullata.</string>
+    <string name="delete_success">Match eliminato correttamente</string>
+    <string name="rtmp_explanation">L\'URL RTMP è il canale di trasmissione. Incollandolo qui, l\'app si collegherà alla piattaforma scelta (come YouTube, Facebook o Twitch) per trasmettere la partita in diretta.</string>
+    <string name="use_recent_rtmp">Usa un indirizzo recente (consigliato):</string>
+    <string name="or_social_rtmp">Oppure ottieni l\'indirizzo da un social:</string>
+    <string name="recent_loaded_toast">Indirizzo recente caricato!</string>
+    <string name="default_color">Colori default</string>
 </resources>
