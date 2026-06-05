@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.*

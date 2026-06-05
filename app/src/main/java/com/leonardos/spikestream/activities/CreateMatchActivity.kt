@@ -1,12 +1,12 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.activities
 
 import android.app.Activity
-import android.content.Context
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
-import com.leonardos.spikestream.Logger as Log
+import com.leonardos.spikestream.utils.Logger as Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -29,7 +29,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.*
@@ -39,60 +38,46 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
-import com.google.android.gms.auth.GoogleAuthUtil
 import com.facebook.CallbackManager
 import com.facebook.FacebookCallback
 import com.facebook.FacebookException
 import com.facebook.login.LoginManager
 import com.facebook.login.LoginResult
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONArray
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
-import com.google.android.gms.ads.AdError
-import com.google.android.gms.ads.AdRequest
-import com.google.android.gms.ads.FullScreenContentCallback
-import com.google.android.gms.ads.LoadAdError
-import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.appopen.AppOpenAd
-import com.google.android.gms.ads.rewarded.RewardedAd
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
-import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
-import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
+import com.google.android.gms.common.api.ApiException
+import com.leonardos.spikestream.BuildConfig
+import com.leonardos.spikestream.utils.Constants
+import com.leonardos.spikestream.R
+import com.leonardos.spikestream.utils.TourManager
+import com.leonardos.spikestream.ui.components.TourOverlay
+import com.leonardos.spikestream.ui.components.TourStep
+import com.leonardos.spikestream.ui.components.rememberTourController
+import com.leonardos.spikestream.ui.components.tourHighlight
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamDialog
 import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamTextField
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType
-import okhttp3.RequestBody
-import org.json.JSONObject
+import com.leonardos.spikestream.data.*
 
 
 class CreateMatchActivity: ComponentActivity() {
@@ -192,6 +177,40 @@ class CreateMatchActivity: ComponentActivity() {
             recentRtmps = prefs.getStringSet("recent_rtmps", emptySet())?.toList() ?: emptyList()
         }
 
+        val tourController = rememberTourController(
+            tourKey = TourManager.KEY_CREATE_MATCH,
+            steps = listOf(
+                TourStep(
+                    id = "teams",
+                    emoji = "👥",
+                    title = context.getString(R.string.tour_create_step1_title),
+                    body = context.getString(R.string.tour_create_step1_body),
+                    highlightKey = "teams"
+                ),
+                TourStep(
+                    id = "rtmp",
+                    emoji = "📡",
+                    title = context.getString(R.string.tour_create_step2_title),
+                    body = context.getString(R.string.tour_create_step2_body),
+                    highlightKey = "rtmp"
+                ),
+                TourStep(
+                    id = "social",
+                    emoji = "🔴",
+                    title = context.getString(R.string.tour_create_step3_title),
+                    body = context.getString(R.string.tour_create_step3_body),
+                    highlightKey = "social"
+                ),
+                TourStep(
+                    id = "create_btn",
+                    emoji = "✅",
+                    title = context.getString(R.string.tour_create_step4_title),
+                    body = context.getString(R.string.tour_create_step4_body),
+                    highlightKey = "create_btn"
+                )
+            )
+        )
+
         // Google Sign-In setup
         val gso = remember {
             Log.d("YouTubeAuth", "Using Client ID: ${BuildConfig.GOOGLE_WEB_CLIENT_ID}")
@@ -213,7 +232,7 @@ class CreateMatchActivity: ComponentActivity() {
                     if (token != null) {
                         scope.launch {
                             isYouTubeLoading = true
-                            val resultRtmp = fetchFacebookRTMP(fbAccessToken, token!!)
+                            val resultRtmp = StreamApi.fetchFacebookRTMP(fbAccessToken, token!!)
                             if (resultRtmp != null) {
                                 streamUrl = resultRtmp
                                 Toast.makeText(context, context.getString(R.string.fb_load_success), Toast.LENGTH_SHORT).show()
@@ -239,11 +258,11 @@ class CreateMatchActivity: ComponentActivity() {
         ) { result ->
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
-                val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+                val account = task.getResult(ApiException::class.java)
                 if (account != null) {
                     scope.launch {
                         isYouTubeLoading = true
-                        val result = fetchYouTubeRTMP(context, account, token!!)
+                        val result = StreamApi.fetchYouTubeRTMP(context, account, token!!)
                         when (result) {
                             is YouTubeFetchResult.Success -> {
                                 streamUrl = result.rtmpUrl
@@ -304,7 +323,8 @@ class CreateMatchActivity: ComponentActivity() {
                         value = team1,
                         onValueChange = { team1 = it },
                         label = stringResource(R.string.local_team),
-                        leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) }
+                        leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth().tourHighlight(tourController, "teams", RoundedCornerShape(16.dp))
                     )
 
                     Spacer(Modifier.height(16.dp))
@@ -330,7 +350,7 @@ class CreateMatchActivity: ComponentActivity() {
                             setTextIsSelectable(true)
                         }
 
-                        android.app.AlertDialog.Builder(context)
+                        AlertDialog.Builder(context)
                             .setTitle(context.getString(R.string.guide_title))
                             .setView(textView)
                             .setPositiveButton(android.R.string.ok, null)
@@ -359,7 +379,8 @@ class CreateMatchActivity: ComponentActivity() {
                         value = streamUrl,
                         onValueChange = { streamUrl = it },
                         label = stringResource(R.string.url_rtmp_label),
-                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null) }
+                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth().tourHighlight(tourController, "rtmp", RoundedCornerShape(16.dp))
                     )
 
                     Spacer(Modifier.height(12.dp))
@@ -497,7 +518,9 @@ class CreateMatchActivity: ComponentActivity() {
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tourHighlight(tourController, "social", RoundedCornerShape(12.dp)),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // Bottone YouTube (Secondario, sottile OutlinedButton)
@@ -553,6 +576,7 @@ class CreateMatchActivity: ComponentActivity() {
                     Spacer(Modifier.height(32.dp))
 
                     SpikeStreamPrimaryButton(
+                        modifier = Modifier.fillMaxWidth().tourHighlight(tourController, "create_btn", RoundedCornerShape(16.dp)),
                         text = stringResource(R.string.create_match),
                         isLoading = isLoading,
                         enabled = team1.isNotBlank() && team2.isNotBlank() && (streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://")),
@@ -561,7 +585,7 @@ class CreateMatchActivity: ComponentActivity() {
                                 if (token != null) {
                                     isLoading = true
                                     scope.launch {
-                                        when (val result = makeCreateMatchRequest(token!!, team1, team2, streamUrl)) {
+                                        when (val result = StreamApi.makeCreateMatchRequest(token!!, team1, team2, streamUrl)) {
                                             is CreateMatchResult.Success -> {
                                                 // Salva l'RTMP nei recenti
                                                 val updatedSet = recentRtmps.toMutableSet()
@@ -589,10 +613,9 @@ class CreateMatchActivity: ComponentActivity() {
 
 
             }
+            TourOverlay(controller = tourController)
         }
     }
-
-
 
     private fun validateInput(team1: String, team2: String, streamUrl: String): Boolean {
         return when {
@@ -611,126 +634,5 @@ class CreateMatchActivity: ComponentActivity() {
             }
             else -> true
         }
-    }
-}
-
-
-suspend fun makeCreateMatchRequest(
-    token: String,
-    teamAName: String,
-    teamBName: String,
-    rtmpUrl: String
-): CreateMatchResult = withContext(Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val jsonBody = JSONObject().apply {
-            put("teamAName", teamAName)
-            put("teamBName", teamBName)
-            put("rtmpUrl", rtmpUrl)
-        }
-
-        val mediaType = MediaType.get("application/json; charset=utf-8")
-        val requestBody = RequestBody.create(mediaType, jsonBody.toString())
-
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/games")
-            .addHeader("Authorization", "Bearer $token")
-            .post(requestBody)
-            .build()
-
-        val response = client.newCall(request).execute()
-        val body = response.body()?.string() ?: ""
-
-        if (response.isSuccessful) {
-            val json = JSONObject(body)
-            val matchId = json.getString("id")
-            CreateMatchResult.Success(matchId)
-        } else {
-            Log.w("CreateMatch", "Create match failed: HTTP ${response.code()}")
-            CreateMatchResult.Error(R.string.create_match_failed)
-        }
-    } catch (e: Exception) {
-        Log.e("CreateMatch", "Create match request failed", e)
-        CreateMatchResult.Error(R.string.connection_failed)
-    }
-}
-
-sealed class CreateMatchResult {
-    data class Success(val matchId: String) : CreateMatchResult()
-    data class Error(val message: Int) : CreateMatchResult()
-}
-
-sealed class YouTubeFetchResult {
-    data class Success(val rtmpUrl: String) : YouTubeFetchResult()
-    object RateLimit : YouTubeFetchResult()
-    object Error : YouTubeFetchResult()
-}
-
-private suspend fun fetchYouTubeRTMP(context: android.content.Context, account: GoogleSignInAccount, jwtToken: String): YouTubeFetchResult = withContext(Dispatchers.IO) {
-    try {
-        val scope = "oauth2:https://www.googleapis.com/auth/youtube.readonly"
-        // Ottiene il token di accesso OAuth2 di Google
-        val googleToken = GoogleAuthUtil.getToken(context, account.account!!, scope)
-
-        val client = getHttpClient()
-        val jsonBody = JSONObject().apply {
-            put("accessToken", googleToken)
-        }
-        val mediaType = MediaType.get("application/json; charset=utf-8")
-        val requestBody = RequestBody.create(mediaType, jsonBody.toString())
-
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/games/youtube-rtmp")
-            .addHeader("Authorization", "Bearer $jwtToken")
-            .post(requestBody)
-            .build()
-
-        val response = client.newCall(request).execute()
-        val body = response.body()?.string() ?: ""
-
-        if (response.isSuccessful) {
-            val json = JSONObject(body)
-            val rtmp = json.optString("rtmpUrl", "")
-            if (rtmp.isNotEmpty()) {
-                return@withContext YouTubeFetchResult.Success(rtmp)
-            }
-        } else if (response.code() == 429) {
-            return@withContext YouTubeFetchResult.RateLimit
-        } else {
-            Log.e("YouTubeBackend", "Request failed: ${response.code()} - $body")
-        }
-        YouTubeFetchResult.Error
-    } catch (e: Exception) {
-        Log.e("YouTubeBackend", "Error fetching stream via Backend", e)
-        YouTubeFetchResult.Error
-    }
-}
-
-suspend fun fetchFacebookRTMP(fbAccessToken: String, appToken: String): String? = withContext(Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val json = JSONObject().apply {
-            put("accessToken", fbAccessToken)
-        }
-        val body = RequestBody.create(
-            MediaType.parse("application/json; charset=utf-8"),
-            json.toString()
-        )
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/games/facebook-rtmp")
-            .addHeader("Authorization", "Bearer $appToken")
-            .post(body)
-            .build()
-
-        val response = client.newCall(request).execute()
-        if (response.isSuccessful) {
-            val responseBody = response.body()?.string()
-            val jsonResponse = JSONObject(responseBody ?: "{}")
-            return@withContext jsonResponse.optString("rtmpUrl", null)
-        }
-        null
-    } catch (e: Exception) {
-        Log.e("FacebookRTMP", "Failed to fetch FB rtmp", e)
-        null
     }
 }

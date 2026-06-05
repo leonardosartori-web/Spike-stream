@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.activities
 
 import android.Manifest
 import android.app.Activity
@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.BitmapFactory
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -34,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.leonardos.spikestream.Logger as Log
+import com.leonardos.spikestream.utils.Logger as Log
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
 import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
@@ -44,10 +43,17 @@ import com.pedro.rtmp.utils.ConnectCheckerRtmp
 import com.pedro.rtplibrary.view.OpenGlView
 import android.media.EncoderProfiles.VideoProfile
 import android.media.MediaRecorder.VideoEncoder
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
-import com.pedro.encoder.input.gl.render.filters.BaseFilterRender
-import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
+import androidx.compose.ui.text.style.TextAlign
+import com.leonardos.spikestream.ui.components.DefaultOverlayStyle
+import com.leonardos.spikestream.data.GetGameResult
+import com.leonardos.spikestream.R
+import com.leonardos.spikestream.data.StreamApi.makeGetGameRequest
+import com.leonardos.spikestream.utils.getHttpClient
+import com.leonardos.spikestream.streaming.StreamBitrateMonitor
+import com.leonardos.spikestream.streaming.StreamBrightnessManager
+import com.leonardos.spikestream.streaming.StreamNetworkManager
+import com.leonardos.spikestream.streaming.StreamOverlayController
+import com.leonardos.spikestream.streaming.StreamSocketManager
 
 /**
  * The main live streaming activity. Integrates the camera feed, GL score overlays,
@@ -137,10 +143,18 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             isPortraitProvider = { resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT },
             onSoftRestart = { width, height ->
                 if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
-                    val isPortrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                    val isPortrait =
+                        resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                     rtmpCamera.stopStream()
                     rtmpCamera.prepareVideo(
-                        width, height, 25, 900 * 1024, 2, if (isPortrait) 90 else 0, VideoEncoder.H264, VideoProfile.HDR_NONE
+                        width,
+                        height,
+                        25,
+                        900 * 1024,
+                        2,
+                        if (isPortrait) 90 else 0,
+                        VideoEncoder.H264,
+                        VideoProfile.HDR_NONE
                     )
                     rtmpCamera.prepareAudio(128 * 1024, 48000, true)
                     rtmpCamera.startStream(rtmpUrl)
@@ -271,7 +285,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
 
         // Listens to network type change dynamically for warnings
         DisposableEffect(Unit) {
-            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val cm = ctx.getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
 
             val networkCallback = object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
@@ -310,7 +324,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             rtmpCamera.prepareVideo(width, height, 25, bitrateSelected, 2, if (!isPortrait) 0 else 90)
                             rtmpCamera.prepareAudio(128 * 1024, 48000, true)
 
-                            /*val bitmapSfondo = BitmapFactory.decodeResource(ctx.resources, R.drawable.background)
+                            /*val bitmapSfondo = BitmapFactory.decodeResource(ctx.resources, R.mipmap.ic_launcher_background)
                             val imageFilter = ImageObjectFilterRender()
                             rtmpCamera.glInterface.addFilter(imageFilter)
                             imageFilter.setImage(bitmapSfondo)
@@ -349,7 +363,8 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                     overlayStyle = overlayStyle,
                     overlayPosition = translatePosition,
                     videoWidth = width,
-                    videoHeight = height
+                    videoHeight = height,
+                    scope = this          // <-- unica modifica qui
                 )
             }
 
@@ -365,14 +380,14 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             text = stringResource(R.string.streaming_launched),
                             color = Color.White,
                             style = MaterialTheme.typography.titleLarge,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = stringResource(R.string.streaming_warning),
                             color = Color.Yellow,
                             style = MaterialTheme.typography.bodyMedium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                     }
                 }

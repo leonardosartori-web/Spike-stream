@@ -138,6 +138,7 @@
     <string name="token_not_available">Token not available</string>
     <string name="invite_link">Invite Link</string>
     <string name="invite_link_error">Unable to generate the link. Please try again.</string>
+    <string name="ad_reward_required_error">You must watch the entire ad to receive the link! Try again.</string>
     <string name="connection_failed">Connection failed. Check your network.</string>
     <string name="stream_connected">Streaming connected!</string>
     <string name="stream_disconnected">Disconnected</string>
@@ -197,4 +198,30 @@
     <string name="or_social_rtmp">Or load the address from a social network:</string>
     <string name="recent_loaded_toast">Recent address loaded!</string>
     <string name="default_color">Default colors</string>
+
+    <!-- Tour -->
+    <string name="tour_skip">Skip</string>
+    <string name="tour_start">Start! 🚀</string>
+    <string name="tour_next">Next →</string>
+    <string name="tour_dashboard_step1_title">Your matches</string>
+    <string name="tour_dashboard_step1_body">Here you will find all saved matches. Tap a card to configure colors, overlay, and camera, then start the live stream.</string>
+    <string name="tour_dashboard_step2_title">Create a new match</string>
+    <string name="tour_dashboard_step2_body">Tap the + button at the bottom right to add a match: enter the team names and the RTMP streaming URL.</string>
+    <string name="tour_create_step1_title">Team names</string>
+    <string name="tour_create_step1_body">Enter the home team name (top field) and the away team name.</string>
+    <string name="tour_create_step2_title">RTMP Streaming URL</string>
+    <string name="tour_create_step2_body">Paste the RTMP URL here. It must start with rtmp:// or rtmps://. You can find it in the live settings of YouTube, Twitch, or Facebook.</string>
+    <string name="tour_create_step3_title">Import from YouTube or Facebook</string>
+    <string name="tour_create_step3_body">Tap YOUTUBE or FACEBOOK to log in and automatically get your live RTMP URL, without copying it manually.</string>
+    <string name="tour_create_step4_title">Create the match</string>
+    <string name="tour_create_step4_body">When teams and URL are filled in, tap here to save the match. You will return to the dashboard where you can start it.</string>
+    <string name="tour_options_step1_title">Scoreboard Link</string>
+    <string name="tour_options_step1_body">Generate a secret link and send it to whoever is keeping the score from the stands. The score will update in real time on the stream!</string>
+    <string name="tour_options_step2_title">Overlay Position</string>
+    <string name="tour_options_step2_body">Tap one of the chips in the 16:9 preview to choose where the overlay will appear in the live video.</string>
+    <string name="tour_options_step3_title">Select Camera</string>
+    <string name="tour_options_step3_body">Choose which device camera to use. Usually the back camera (📷) gives the best result for filming the court.</string>
+    <string name="tour_options_step4_title">LIVE Preview!</string>
+    <string name="tour_options_step4_body">All set! Tap this button to preview the camera with the scoreboard. \n💡 Don\'t forget to correctly set up the live stream on your platform (e.g., set the title on YouTube) before starting the final broadcast on the next screen!</string>
+    <string name="settings_replay_tour">Replay tutorials</string>
 </resources>

@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.streaming
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -6,7 +6,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Handler
 import android.os.Looper
-import com.leonardos.spikestream.Logger as Log
+import com.leonardos.spikestream.utils.Logger as Log
 
 /**
  * Monitors network speed and capabilities in the background during streaming.

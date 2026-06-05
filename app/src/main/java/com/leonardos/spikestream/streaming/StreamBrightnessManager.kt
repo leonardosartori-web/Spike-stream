@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.streaming
 
 import android.view.Window
 import android.view.WindowManager

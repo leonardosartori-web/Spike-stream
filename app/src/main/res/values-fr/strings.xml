@@ -138,6 +138,7 @@
     <string name="token_not_available">Jeton non disponible</string>
     <string name="invite_link">Lien d\'invitation</string>
     <string name="invite_link_error">Impossible de générer le lien. Veuillez réessayer.</string>
+    <string name="ad_reward_required_error">Vous devez regarder l\'intégralité de l\'annonce pour recevoir le lien ! Réessayez.</string>
     <string name="connection_failed">Connexion échouée. Vérifiez votre réseau.</string>
     <string name="stream_connected">Streaming connecté !</string>
     <string name="stream_disconnected">Déconnecté</string>
@@ -196,5 +197,31 @@
     <string name="use_recent_rtmp">Utiliser une adresse récente (recommandé) :</string>
     <string name="or_social_rtmp">Ou récupérer l\'adresse depuis un réseau social :</string>
     <string name="recent_loaded_toast">Adresse récente chargée !</string>
-    <string name="default_color">Default color</string>
+    <string name="default_color">Couleurs par défaut</string>
+
+    <!-- Tour -->
+    <string name="tour_skip">Passer</string>
+    <string name="tour_start">Commencer ! 🚀</string>
+    <string name="tour_next">Suivant →</string>
+    <string name="tour_dashboard_step1_title">Vos matchs</string>
+    <string name="tour_dashboard_step1_body">Vous trouverez ici tous les matchs enregistrés. Appuyez sur une carte pour configurer les couleurs, l\'incrustation et la caméra, puis lancez le direct.</string>
+    <string name="tour_dashboard_step2_title">Créer un nouveau match</string>
+    <string name="tour_dashboard_step2_body">Appuyez sur le bouton + en bas à droite pour ajouter un match : entrez les noms des équipes et l\'URL de streaming RTMP.</string>
+    <string name="tour_create_step1_title">Noms des équipes</string>
+    <string name="tour_create_step1_body">Entrez le nom de l\'équipe à domicile (champ supérieur) et de l\'équipe à l\'extérieur.</string>
+    <string name="tour_create_step2_title">URL de streaming RTMP</string>
+    <string name="tour_create_step2_body">Collez l\'URL RTMP ici. Elle doit commencer par rtmp:// ou rtmps://. Vous la trouverez dans les paramètres en direct de YouTube, Twitch ou Facebook.</string>
+    <string name="tour_create_step3_title">Importer depuis YouTube ou Facebook</string>
+    <string name="tour_create_step3_body">Appuyez sur YOUTUBE ou FACEBOOK pour vous connecter et obtenir automatiquement votre URL RTMP en direct, sans la copier manuellement.</string>
+    <string name="tour_create_step4_title">Créer le match</string>
+    <string name="tour_create_step4_body">Une fois les équipes et l\'URL remplis, appuyez ici pour enregistrer le match. Vous reviendrez au tableau de bord où vous pourrez le lancer.</string>
+    <string name="tour_options_step1_title">Lien du tableau d\'affichage</string>
+    <string name="tour_options_step1_body">Générez un lien secret et envoyez-le à la personne qui tient le score depuis les tribunes. Le score sera mis à jour en temps réel sur le stream !</string>
+    <string name="tour_options_step2_title">Position de l\'incrustation</string>
+    <string name="tour_options_step2_body">Appuyez sur l\'une des puces dans l\'aperçu 16:9 pour choisir où l\'incrustation apparaîtra dans la vidéo en direct.</string>
+    <string name="tour_options_step3_title">Sélectionner la caméra</string>
+    <string name="tour_options_step3_body">Choisissez la caméra de l\'appareil à utiliser. En général, la caméra arrière (📷) donne le meilleur résultat pour filmer le terrain.</string>
+    <string name="tour_options_step4_title">Aperçu du LIVE !</string>
+    <string name="tour_options_step4_body">Tout est prêt ! Appuyez sur ce bouton pour voir l\'aperçu de la caméra avec le score. \n💡 N\'oubliez pas de configurer correctement le direct sur votre plateforme (ex: titre sur YouTube) avant de lancer le flux définitif depuis l\'écran suivant !</string>
+    <string name="settings_replay_tour">Revoir les tutoriels</string>
 </resources>

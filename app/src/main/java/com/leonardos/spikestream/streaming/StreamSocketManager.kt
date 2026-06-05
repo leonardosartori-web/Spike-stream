@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.streaming
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -8,7 +8,9 @@ import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import com.leonardos.spikestream.Logger as Log
+import com.leonardos.spikestream.utils.Constants
+import com.leonardos.spikestream.R
+import com.leonardos.spikestream.utils.Logger as Log
 import io.socket.client.IO
 import io.socket.client.Socket
 import okhttp3.OkHttpClient

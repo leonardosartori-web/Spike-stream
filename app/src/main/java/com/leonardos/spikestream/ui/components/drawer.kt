@@ -1,10 +1,11 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.ui.components
 
 import android.content.Context
 import android.graphics.*
 import android.graphics.Paint.Align
 import android.graphics.Paint.Style
 import androidx.core.content.res.ResourcesCompat
+import com.leonardos.spikestream.R
 
 // ----------------------------------------------------
 // 🎨 THEME MODEL
@@ -57,6 +58,7 @@ class ScoreOverlayRenderer(
     context: Context
 ) {
 
+    private var cachedBitmap: Bitmap? = null
     // ----------------------------------------------------
     // FONTS
     // ----------------------------------------------------
@@ -94,6 +96,24 @@ class ScoreOverlayRenderer(
     }
 
     private val tmpRect = RectF()
+
+    // Flash state per animazione cambio punto
+    var flashAlpha1 = 0f
+    var flashAlpha2 = 0f
+
+    private val FLASH_DECAY = 0.86f
+
+    fun tickFlash() {
+        if (flashAlpha1 > 0.01f) flashAlpha1 *= FLASH_DECAY else flashAlpha1 = 0f
+        if (flashAlpha2 > 0.01f) flashAlpha2 *= FLASH_DECAY else flashAlpha2 = 0f
+    }
+
+    fun triggerFlash(team: Int) {
+        if (team == 1) flashAlpha1 = 1f else flashAlpha2 = 1f
+    }
+
+    val isFlashing: Boolean
+        get() = flashAlpha1 > 0.01f || flashAlpha2 > 0.01f
 
     // ----------------------------------------------------
     // PAINTS
@@ -146,11 +166,11 @@ class ScoreOverlayRenderer(
     }
 
     private val sideAccentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
+        style = Style.FILL
     }
 
     private val servePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
+        style = Style.FILL
     }
 
     // ----------------------------------------------------
@@ -165,6 +185,8 @@ class ScoreOverlayRenderer(
     private fun recalc(scale: Float) {
         bitmapWidth = ((340 * REF_W / 1280f) * hd).toInt()
         bitmapHeight = ((105 * REF_H / 720f) * hd).toInt()
+
+        cachedBitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
 
         outerPadding = 4f * hd
 
@@ -231,7 +253,8 @@ class ScoreOverlayRenderer(
 
         watermarkPaint.color = style.watermark
 
-        val bmp = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+        val bmp = cachedBitmap ?: Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(Color.TRANSPARENT)
         val canvas = Canvas(bmp)
 
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
@@ -344,16 +367,16 @@ class ScoreOverlayRenderer(
             )
 
             pointsCardPaint.color = teamStyle.card
+            canvas.drawRoundRect(tmpRect, 8f * hd, 8f * hd, pointsCardPaint)
 
-            canvas.drawRoundRect(
-                tmpRect,
-                8f * hd,
-                8f * hd,
-                pointsCardPaint
-            )
+            // Flash overlay sopra il card
+            val flashAlpha = if (isTeam1) flashAlpha1 else flashAlpha2
+            if (flashAlpha > 0.01f) {
+                accentPaint.color = adjustAlpha(teamStyle.accent, flashAlpha * 0.40f)
+                canvas.drawRoundRect(tmpRect, 8f * hd, 8f * hd, accentPaint)
+            }
 
             pointsPaint.color = teamStyle.text
-
             canvas.drawCenteredText(
                 pts.toString(),
                 tmpRect.centerX(),

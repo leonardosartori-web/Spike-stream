@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.streaming
 
 import android.content.Context
 import android.net.ConnectivityManager

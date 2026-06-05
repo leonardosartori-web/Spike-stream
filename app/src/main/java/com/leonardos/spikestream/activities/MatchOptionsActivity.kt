@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.leonardos.spikestream
+package com.leonardos.spikestream.activities
 
 import android.app.Activity
 import android.content.ClipData
@@ -11,7 +11,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Bundle
-import com.leonardos.spikestream.Logger as Log
+import com.leonardos.spikestream.utils.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -86,14 +86,24 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.graphics.toArgb
+import com.leonardos.spikestream.BuildConfig
+import com.leonardos.spikestream.utils.Constants
+import com.leonardos.spikestream.ui.components.DefaultOverlayStyle
+import com.leonardos.spikestream.data.OverlayStyleStorage
+import com.leonardos.spikestream.R
+import com.leonardos.spikestream.utils.TourManager
+import com.leonardos.spikestream.ui.components.TourOverlay
+import com.leonardos.spikestream.ui.components.TourStep
+import com.leonardos.spikestream.ui.components.rememberTourController
+import com.leonardos.spikestream.ui.components.tourHighlight
 import com.leonardos.spikestream.ui.theme.SpikeStreamDialog
+import com.leonardos.spikestream.data.*
+import com.leonardos.spikestream.utils.RemoteConfigManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.Request
-import okhttp3.RequestBody
-import org.json.JSONObject
 import yuku.ambilwarna.AmbilWarnaDialog
 
 
@@ -166,7 +176,9 @@ class MatchOptionsActivity : ComponentActivity() {
                         val adLoadingState = remember { mutableStateOf(true) }
                         val adError = remember { mutableStateOf<LoadAdError?>(null) }
 
-                        LaunchedEffect(Unit) {
+                        // 1. Funzione isolata e riutilizzabile per caricare l'Ad ogni volta che serve
+                        fun loadAd() {
+                            adLoadingState.value = true
                             val adRequest = AdRequest.Builder().build()
                             RewardedInterstitialAd.load(
                                 this@MatchOptionsActivity,
@@ -181,11 +193,16 @@ class MatchOptionsActivity : ComponentActivity() {
                                     override fun onAdFailedToLoad(error: LoadAdError) {
                                         rewardedAdState.value = null
                                         adLoadingState.value = false
+                                        adError.value = error
                                     }
                                 }
                             )
                         }
 
+                        // 2. Primo caricamento all'avvio
+                        LaunchedEffect(Unit) {
+                            loadAd()
+                        }
 
                         if (adLoadingState.value) {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -193,10 +210,17 @@ class MatchOptionsActivity : ComponentActivity() {
                             }
                         } else {
                             MatchOptionsScreen(
-                                teamA, teamB, rtmpUrl, matchId, tokenManager,
-                                rewardedAdState.value,
+                                teamA = teamA,
+                                teamB = teamB,
+                                rtmpUrl = rtmpUrl,
+                                matchId = matchId,
+                                tokenManager = tokenManager,
+                                rewardedAd = rewardedAdState.value,
                                 onRewardedAdConsumed = {
-                                    rewardedAdState.value = null // reset
+                                    rewardedAdState.value = null // Resetta l'ad vecchio consumato
+                                },
+                                onRequestNewAd = {
+                                    loadAd() // Chiamata per caricarne uno nuovo quando l'utente fallisce/chiude
                                 }
                             )
                         }
@@ -223,7 +247,8 @@ fun MatchOptionsScreen(
     matchId: String,
     tokenManager: TokenManager,
     rewardedAd: RewardedInterstitialAd?,
-    onRewardedAdConsumed: () -> Unit
+    onRewardedAdConsumed: () -> Unit,
+    onRequestNewAd: () -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as Activity
@@ -267,6 +292,40 @@ fun MatchOptionsScreen(
         var selectedCameraId by remember { mutableStateOf<String?>(null) }
         var showInfoDialog by remember { mutableStateOf(false) }
         var showDeleteDialog by remember { mutableStateOf(false) }
+        val tourController = rememberTourController(
+            tourKey = TourManager.KEY_MATCH_OPTIONS,
+            steps = listOf(
+                TourStep(
+                    id = "invite",
+                    emoji = "🔗",
+                    title = context.getString(R.string.tour_options_step1_title),
+                    body = context.getString(R.string.tour_options_step1_body),
+                    highlightKey = "invite"
+                ),
+                TourStep(
+                    id = "overlay",
+                    emoji = "🎯",
+                    title = context.getString(R.string.tour_options_step2_title),
+                    body = context.getString(R.string.tour_options_step2_body),
+                    highlightKey = "overlay"
+                ),
+                TourStep(
+                    id = "camera",
+                    emoji = "📷",
+                    title = context.getString(R.string.tour_options_step3_title),
+                    body = context.getString(R.string.tour_options_step3_body),
+                    highlightKey = "camera"
+                ),
+                TourStep(
+                    id = "launch",
+                    emoji = "🔴",
+                    title = context.getString(R.string.tour_options_step4_title),
+                    body = context.getString(R.string.tour_options_step4_body),
+                    highlightKey = "launch"
+                )
+            )
+        )
+
 
         val cameras = remember {
             val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -398,7 +457,9 @@ fun MatchOptionsScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            SpikeStreamGlassCard {
+            SpikeStreamGlassCard(
+                modifier = Modifier.Companion.tourHighlight(tourController, "invite", RoundedCornerShape(24.dp))
+            ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = stringResource(R.string.invite_scorers_title),
@@ -417,20 +478,52 @@ fun MatchOptionsScreen(
                         text = stringResource(R.string.generate_link),
                         onClick = {
                             val ad = rewardedAd
-                            if (ad != null) {
+                            val currentToken = token
+
+                            val adsEnabledFromRemote = RemoteConfigManager.isInvitationLinkEnabled()
+
+                            if (adsEnabledFromRemote && ad != null) {
+                                var userEarnedReward = false
+
                                 ad.fullScreenContentCallback = object : FullScreenContentCallback() {
                                     override fun onAdDismissedFullScreenContent() {
+                                        // Consumiamo l'ad vecchio in ogni caso
                                         onRewardedAdConsumed()
-                                        handleInviteLink(context, token!!, matchId, scope)
+
+                                        if (userEarnedReward) {
+                                            // Caso A: Ha completato l'annuncio -> Diamo il link
+                                            scope.launch {
+                                                delay(200)
+                                                handleInviteLink(context, currentToken, matchId, scope)
+                                            }
+                                        } else {
+                                            // Caso B: Ha chiuso in anticipo -> Errore e RICHIEDIAMO un nuovo Ad
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.ad_reward_required_error),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+
+                                            // Questo rimette l'Activity in stato di caricamento e rigenera l'oggetto AdMob
+                                            onRequestNewAd()
+                                        }
                                     }
+
                                     override fun onAdFailedToShowFullScreenContent(p0: AdError) {
                                         onRewardedAdConsumed()
-                                        handleInviteLink(context, token!!, matchId, scope)
+                                        // Se fallisce l'apertura, bypassiamo l'errore per non bloccare l'utente
+                                        handleInviteLink(context, currentToken, matchId, scope)
                                     }
                                 }
-                                ad.show(activity) { /* user earned reward */ }
+
+                                ad.show(activity) { rewardItem ->
+                                    userEarnedReward = true
+                                }
+
                             } else {
-                                handleInviteLink(context, token!!, matchId, scope)
+                                // Se gli ad sono disabilitati o l'ad è nullo per motivi di caricamento fallito a monte,
+                                // generiamo direttamente il link.
+                                handleInviteLink(context, currentToken, matchId, scope)
                             }
                         }
                     )
@@ -457,10 +550,16 @@ fun MatchOptionsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            OverlayPositionPicker(
-                selectedPosition = selectedPosition,
-                onPositionSelected = { selectedPosition = it }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .tourHighlight(tourController, "overlay", RoundedCornerShape(16.dp))
+            ) {
+                OverlayPositionPicker(
+                    selectedPosition = selectedPosition,
+                    onPositionSelected = { selectedPosition = it }
+                )
+            }
 
             Spacer(Modifier.height(32.dp))
 
@@ -482,15 +581,22 @@ fun MatchOptionsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            CameraPicker(
-                cameras = cameras,
-                selectedCameraId = selectedCameraId,
-                onCameraSelected = { selectedCameraId = it }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .tourHighlight(tourController, "camera", RoundedCornerShape(12.dp))
+            ) {
+                CameraPicker(
+                    cameras = cameras,
+                    selectedCameraId = selectedCameraId,
+                    onCameraSelected = { selectedCameraId = it }
+                )
+            }
 
             Spacer(Modifier.height(40.dp))
 
             SpikeStreamPrimaryButton(
+                modifier = Modifier.fillMaxWidth().tourHighlight(tourController, "launch", RoundedCornerShape(16.dp)),
                 text = stringResource(R.string.launch_stream),
                 onClick = {
                     val cameraId = selectedCameraId ?: return@SpikeStreamPrimaryButton
@@ -570,7 +676,7 @@ fun MatchOptionsScreen(
                         onClick = {
                             showDeleteDialog = false
                             scope.launch {
-                                val success = makeDeleteMatchRequest(token!!, matchId)
+                                val success = StreamApi.makeDeleteMatchRequest(token!!, matchId)
                                 if (success) {
                                     Toast.makeText(context, context.getString(R.string.delete_success), Toast.LENGTH_SHORT).show()
                                     activity.finish()
@@ -592,6 +698,7 @@ fun MatchOptionsScreen(
                 }
             )
         }
+        TourOverlay(controller = tourController)
     }
 }
 
@@ -813,50 +920,39 @@ fun handleInviteLink(
     matchId: String,
     scope: CoroutineScope
 ) {
+
     if (token != null) {
         scope.launch {
-            when (val result = makePostInviteLinkRequest(token, matchId)) {
-                is InviteResult.Success -> {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    val clip = ClipData.newPlainText(context.getString(R.string.invite_link), result.link)
-                    clipboard.setPrimaryClip(clip)
-                    Toast.makeText(context, context.getString(R.string.copy_link), Toast.LENGTH_SHORT).show()
-                }
-                is InviteResult.Error -> {
-                    Toast.makeText(context, context.getString(result.messageResId), Toast.LENGTH_LONG).show()
+            val result = StreamApi.makePostInviteLinkRequest(token, matchId)
+
+            withContext(Dispatchers.Main) {
+
+                // Usiamo il reference esplicito alla tua sealed class specifica
+                when (result) {
+                    is com.leonardos.spikestream.data.InviteResult.Success -> {
+                        try {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText(context.getString(R.string.invite_link), result.link)
+                            clipboard.setPrimaryClip(clip)
+                            Log.d("SPIKESTREAM_DEBUG", "5. Clipboard impostata con successo")
+                            Toast.makeText(context, context.getString(R.string.copy_link), Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Log.e("SPIKESTREAM_DEBUG", "ERRORE CLIPBOARD: ", e)
+                        }
+                    }
+                    is com.leonardos.spikestream.data.InviteResult.Error -> {
+                        Log.w("SPIKESTREAM_DEBUG", "4. Errore API gestito: ${result.messageResId}")
+                        Toast.makeText(context, context.getString(result.messageResId), Toast.LENGTH_LONG).show()
+                    }
+                    else -> {
+                        Log.e("SPIKESTREAM_DEBUG", "4a. Il risultato è finito ancora nell'ELSE! Tipo reale: ${result::class.java.name}")
+                    }
                 }
             }
         }
     } else {
+        Log.w("SPIKESTREAM_DEBUG", "1a. Token nullo, operazione annullata")
         Toast.makeText(context, context.getString(R.string.token_not_available), Toast.LENGTH_SHORT).show()
-    }
-}
-
-
-suspend fun makePostInviteLinkRequest(token: String, matchId: String): InviteResult = withContext(
-    Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/auth/invite/$matchId")
-            .addHeader("Authorization", "Bearer $token")
-            .post(RequestBody.create(null, ByteArray(0)))
-            .build()
-
-        val response = client.newCall(request).execute()
-        val body = response.body()?.string() ?: ""
-
-        if (response.isSuccessful) {
-            val json = JSONObject(body)
-            val url = json.getString("link")
-            InviteResult.Success(url)
-        } else {
-            Log.w("InviteLink", "Get invite link failed: HTTP ${response.code()}")
-            InviteResult.Error(R.string.invite_link_error)
-        }
-    } catch (e: Exception) {
-        Log.e("InviteLink", "Invite link request failed", e)
-        InviteResult.Error(R.string.connection_failed)
     }
 }
 
@@ -925,22 +1021,5 @@ fun CameraPicker(
                 }
             }
         }
-    }
-}
-
-suspend fun makeDeleteMatchRequest(token: String, matchId: String): Boolean = withContext(Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/games/$matchId")
-            .addHeader("Authorization", "Bearer $token")
-            .delete()
-            .build()
-
-        val response = client.newCall(request).execute()
-        response.isSuccessful
-    } catch (e: Exception) {
-        Log.e("DeleteMatch", "Delete match request failed", e)
-        false
     }
 }

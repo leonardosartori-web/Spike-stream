@@ -1,16 +1,14 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.activities
 
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import android.os.Bundle
-import com.leonardos.spikestream.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.text.font.FontWeight
 import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,13 +20,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.Request
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import com.leonardos.spikestream.ui.theme.SpikeStreamDialog
+import android.content.Intent
+import com.leonardos.spikestream.R
+import com.leonardos.spikestream.utils.TourManager
+import com.leonardos.spikestream.data.*
 
 class SettingsActivity : ComponentActivity() {
 
@@ -91,6 +91,7 @@ fun SettingsScreen(
     var showDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     SpikeStreamScreen {
         Column(
@@ -111,6 +112,36 @@ fun SettingsScreen(
             SpikeStreamGlassCard {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
+                        text = stringResource(R.string.settings_replay_tour),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            TourManager.resetAll(context)
+                            Toast.makeText(context, "Tutorial reset", Toast.LENGTH_SHORT).show()
+                            // Riavvia MainActivity per ricaricare il tour della Dashboard
+                            val intent = Intent(context, MainActivity::class.java)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.settings_replay_tour), color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            SpikeStreamGlassCard {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
                         text = stringResource(R.string.delete_account),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
@@ -125,7 +156,8 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(24.dp))
                     SpikeStreamDangerButton(
-                        text = if (isLoading) stringResource(R.string.deleting) else stringResource(R.string.delete_account),
+                        text = if (isLoading) stringResource(R.string.deleting) else stringResource(
+                            R.string.delete_account),
                         onClick = { showDialog = true },
                         enabled = !isLoading,
                         modifier = Modifier.fillMaxWidth()
@@ -153,7 +185,7 @@ fun SettingsScreen(
                         showDialog = false
                         isLoading = true
                         scope.launch {
-                            val success = makeDeleteMe(jwtToken)
+                            val success = StreamApi.makeDeleteMe(jwtToken)
                             if (success) {
                                 onAccountDeleted()
                             }
@@ -171,24 +203,5 @@ fun SettingsScreen(
                 }
             }
         )
-    }
-}
-
-suspend fun makeDeleteMe(token: String): Boolean = withContext(
-    Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/users/me")
-            .addHeader("Authorization", "Bearer $token")
-            .delete()
-            .build()
-
-        val response = client.newCall(request).execute()
-        response.isSuccessful
-
-    } catch (e: Exception) {
-        Log.e("Settings", "Delete account failed", e)
-        false
     }
 }

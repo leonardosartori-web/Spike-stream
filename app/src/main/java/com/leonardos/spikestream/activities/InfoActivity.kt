@@ -1,11 +1,10 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.activities
 
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,7 +29,6 @@ import androidx.core.text.HtmlCompat
 import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
-import com.leonardos.spikestream.ui.theme.SpikeStreamOutlinedButton
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +38,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextAlign
+import com.leonardos.spikestream.utils.Constants
+import com.leonardos.spikestream.R
 import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 
 

@@ -138,6 +138,7 @@
     <string name="token_not_available">Token non disponibile</string>
     <string name="invite_link">Link Invito</string>
     <string name="invite_link_error">Impossibile generare il link. Riprova.</string>
+    <string name="ad_reward_required_error">Devi guardare tutto l\'annuncio per ricevere il link! Riprova.</string>
     <string name="connection_failed">Connessione non riuscita. Controlla la rete.</string>
     <string name="stream_connected">Streaming connesso!</string>
     <string name="stream_disconnected">Disconnesso</string>
@@ -197,4 +198,30 @@
     <string name="or_social_rtmp">Oppure ottieni l\'indirizzo da un social:</string>
     <string name="recent_loaded_toast">Indirizzo recente caricato!</string>
     <string name="default_color">Colori default</string>
+
+    <!-- Tour -->
+    <string name="tour_skip">Salta</string>
+    <string name="tour_start">Inizia! 🚀</string>
+    <string name="tour_next">Avanti →</string>
+    <string name="tour_dashboard_step1_title">Le tue partite</string>
+    <string name="tour_dashboard_step1_body">Qui trovi tutte le partite salvate. Tocca una card per configurare colori, overlay e telecamera, poi avviare la diretta.</string>
+    <string name="tour_dashboard_step2_title">Crea una nuova partita</string>
+    <string name="tour_dashboard_step2_body">Tocca il pulsante + in basso a destra per aggiungere una partita: inserisci i nomi delle squadre e l\'URL RTMP di streaming.</string>
+    <string name="tour_create_step1_title">Nomi delle squadre</string>
+    <string name="tour_create_step1_body">Inserisci il nome della squadra di casa (campo superiore) e quella ospite.</string>
+    <string name="tour_create_step2_title">URL di streaming RTMP</string>
+    <string name="tour_create_step2_body">Incolla qui l\'URL RTMP. Deve iniziare con rtmp:// o rtmps://. Lo trovi nelle impostazioni live di YouTube, Twitch o Facebook.</string>
+    <string name="tour_create_step3_title">Importa da YouTube o Facebook</string>
+    <string name="tour_create_step3_body">Tocca YOUTUBE o FACEBOOK per accedere e ottenere automaticamente l\'URL RTMP del tuo live, senza copiarlo a mano.</string>
+    <string name="tour_create_step4_title">Crea la partita</string>
+    <string name="tour_create_step4_body">Quando squadre e URL sono compilati, tocca qui per salvare la partita. Tornerai alla dashboard dove potrai avviarla.</string>
+    <string name="tour_options_step1_title">Link per il segnapunti</string>
+    <string name="tour_options_step1_body">Genera un link segreto e mandalo a chi terrà il punteggio dagli spalti. Il punteggio si aggiornerà in tempo reale sullo stream!</string>
+    <string name="tour_options_step2_title">Posizione dell\'overlay</string>
+    <string name="tour_options_step2_body">Tocca uno dei chip nel preview 16:9 per scegliere dove apparirà l\'overlay nel video in diretta.</string>
+    <string name="tour_options_step3_title">Seleziona la telecamera</string>
+    <string name="tour_options_step3_body">Scegli quale telecamera del dispositivo usare. Di solito la posteriore (📷) dà il miglior risultato per riprendere il campo.</string>
+    <string name="tour_options_step4_title">Anteprima LIVE!</string>
+    <string name="tour_options_step4_body">Tutto pronto! Tocca questo pulsante per vedere l\'anteprima della telecamera con il segnapunti. \n💡 Ricordati di impostare correttamente la diretta sulla tua piattaforma (es: metti un bel titolo su YouTube) prima di avviare il flusso definitivo dalla schermata successiva!</string>
+    <string name="settings_replay_tour">Rivedi i tutorial</string>
 </resources>

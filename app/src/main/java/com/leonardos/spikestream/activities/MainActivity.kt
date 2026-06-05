@@ -1,21 +1,19 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.leonardos.spikestream
+package com.leonardos.spikestream.activities
 
 import com.leonardos.spikestream.BuildConfig
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
-import com.leonardos.spikestream.Logger as Log
+import com.leonardos.spikestream.utils.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,14 +29,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,10 +39,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.datastore.preferences.core.edit
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
 import com.leonardos.spikestream.ui.theme.*
 import com.google.accompanist.swiperefresh.SwipeRefresh
@@ -61,7 +51,6 @@ import com.google.android.play.core.appupdate.AppUpdateManager
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
-import com.google.android.play.core.ktx.isImmediateUpdateAllowed
 import java.util.concurrent.atomic.AtomicBoolean
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.appopen.AppOpenAd
@@ -72,69 +61,92 @@ import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType
-import okhttp3.Request
-import okhttp3.RequestBody
-import org.json.JSONArray
-import org.json.JSONObject
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.leonardos.spikestream.utils.Constants
+import com.leonardos.spikestream.R
+import com.leonardos.spikestream.utils.RemoteConfigManager
+import com.leonardos.spikestream.utils.TourManager
+import com.leonardos.spikestream.ui.components.TourOverlay
+import com.leonardos.spikestream.ui.components.TourStep
+import com.leonardos.spikestream.ui.components.rememberTourController
+import com.leonardos.spikestream.ui.components.tourHighlight
 import kotlinx.coroutines.delay
+import com.leonardos.spikestream.data.*
+
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-private val Context.dataStore by preferencesDataStore(name = "user_prefs")
+import kotlinx.coroutines.withContext
 
 class TokenManager(private val context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
 
-    private val sharedPrefs = EncryptedSharedPreferences.create(
-        context,
-        "secure_user_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    private val PREFS_NAME = "secure_user_prefs"
+
+    // Usiamo 'lazy' così l'inizializzazione avviene solo quando serve
+    // e possiamo gestire l'eventuale crash del KeyStore
+    private val sharedPrefs: SharedPreferences by lazy {
+        try {
+            createPrefs()
+        } catch (e: Exception) {
+            // Se arriviamo qui, il refactoring ha corrotto il legame con le chiavi
+            android.util.Log.e("TokenManager", "Errore KeyStore rilevato. Reset delle preferenze.")
+
+            // 1. Cancelliamo i dati corrotti fisicamente
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+
+            // 2. Riprova a creare le preferenze (ora funzionerà perché il file è pulito)
+            createPrefs()
+        }
+    }
+
+    private fun createPrefs(): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        return EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    // Inizializziamo il Flow in modo sicuro
+    private val _tokenFlow = MutableStateFlow<String?>(
+        try { sharedPrefs.getString("auth_token", null) } catch (e: Exception) { null }
     )
-
-    private val _tokenFlow = MutableStateFlow<String?>(sharedPrefs.getString("auth_token", null))
     val tokenFlow: Flow<String?> = _tokenFlow.asStateFlow()
 
     companion object {
-        // Regex that validates the three-part Base64url JWT structure
         private val JWT_REGEX = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
-
         fun isValidJwt(token: String): Boolean = JWT_REGEX.matches(token)
     }
 
     suspend fun saveToken(token: String) {
         withContext(Dispatchers.IO) {
-            sharedPrefs.edit().putString("auth_token", token).apply()
-            _tokenFlow.value = token
+            try {
+                sharedPrefs.edit().putString("auth_token", token).apply()
+                _tokenFlow.value = token
+            } catch (e: Exception) {
+                android.util.Log.e("TokenManager", "Impossibile salvare il token")
+            }
         }
     }
 
     suspend fun clearToken() {
         withContext(Dispatchers.IO) {
-            sharedPrefs.edit().remove("auth_token").apply()
-            _tokenFlow.value = null
+            try {
+                sharedPrefs.edit().remove("auth_token").apply()
+                _tokenFlow.value = null
+            } catch (e: Exception) {
+                android.util.Log.e("TokenManager", "Impossibile cancellare il token")
+            }
         }
     }
-}
-
-sealed class GamesResult {
-    data class Success(val games: List<JSONObject>) : GamesResult()
-    data class Error(val message: String, val isAuthError: Boolean = false) : GamesResult()
-}
-
-sealed class AuthResult {
-    data class Success(val token: String) : AuthResult()
-    data class Error(val message: String) : AuthResult()
 }
 
 
@@ -188,16 +200,12 @@ class MainActivity : ComponentActivity() {
         }
 
         RemoteConfigManager.init {
-            runOnUiThread {
-                if (RemoteConfigManager.isAdsEnabled()) {
-                    initializeConsentFlow()
-                } else {
-                    startApp()
-                }
+            if (RemoteConfigManager.isAdsEnabled()) {
+                initializeConsentFlow()
+            } else {
+                startApp()
             }
         }
-
-        fetchRemoteBaseUrl()
     }
 
     private fun startApp() {
@@ -218,7 +226,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initializeConsentFlow() {
-
         val params = ConsentRequestParameters.Builder()
             .setTagForUnderAgeOfConsent(false)
             .build()
@@ -229,60 +236,35 @@ class MainActivity : ComponentActivity() {
             this,
             params,
             {
-
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(this) {
-
-                    if (consentInformation.canRequestAds()) {
-                        initializeMobileAdsSdk()
-                    } else {
-                        startApp()
-                    }
+                    // L'utente ha chiuso il form (avendo accettato o rifiutato).
+                    // Inizializziamo AdMob in ogni caso per consentire gli annunci limitati.
+                    initializeMobileAdsSdk()
                 }
             },
             { error ->
-                startApp()
+                // Se il controllo del consenso fallisce (es. offline), andiamo comunque avanti
+                initializeMobileAdsSdk()
             }
         )
     }
 
-    private fun fetchRemoteBaseUrl() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val client = getHttpClient()
-                // Primary: your server. Secondary: a fallback like GitHub Gist.
-                val request = Request.Builder()
-                    .url("${Constants.REMOTE_CONFIG_URL}")
-                    .build()
-
-                val response = client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val newUrl = response.body()?.string()?.trim()
-                    if (!newUrl.isNullOrBlank() && newUrl.startsWith("http")) {
-                        Constants.BASE_URL = newUrl
-                        Log.i("Config", "Remote BASE_URL updated: $newUrl")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w("Config", "Remote config fetch failed: ${e.message}")
-            }
-        }
-    }
-
     private fun initializeMobileAdsSdk() {
-
         val already = isMobileAdsInitializeCalled.getAndSet(true)
-
         if (already) return
 
         MobileAds.initialize(this)
 
-        if (RemoteConfigManager.isAppOpenEnabled()) {
+        val canShowAds = consentInformation.canRequestAds()
+
+        // Gestione App Open Ad
+        if (RemoteConfigManager.isAppOpenEnabled() && canShowAds) {
             loadAppOpenAd()
         } else {
             startApp()
         }
 
-        if (RemoteConfigManager.isRewardedEnabled()) {
+        if (RemoteConfigManager.isCreateMatchEnabled()) {
             loadRewardedAd()
         }
     }
@@ -354,7 +336,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        if (RemoteConfigManager.isRewardedEnabled()) {
+        if (RemoteConfigManager.isCreateMatchEnabled()) {
             loadRewardedAd()
         }
     }
@@ -505,40 +487,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
-suspend fun makeLoginRequest(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val jsonBody = JSONObject().apply {
-            put("email", email)
-            put("password", password)
-        }
-
-        val mediaType = MediaType.get("application/json; charset=utf-8")
-        val requestBody = RequestBody.create(mediaType, jsonBody.toString())
-
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/auth/login")
-            .post(requestBody)
-            .build()
-        val response = client.newCall(request).execute()
-
-        val body = response.body()?.string() ?: ""
-        if (response.isSuccessful) {
-            val json = JSONObject(body)
-            val token = json.getString("access_token")
-            AuthResult.Success(token)
-        } else {
-            AuthResult.Error("Credenziali errate. Riprova o scegli un altro metodo")
-        }
-    } catch (e: Exception) {
-        Log.e("Auth", "Login request failed", e)
-        AuthResult.Error("Connessione non riuscita. Controlla la rete e riprova.")
-    }
-}
-
-
-
 @Composable
 fun LoginScreen(
     onLoginSuccess: (String) -> Unit,
@@ -649,7 +597,7 @@ fun LoginScreen(
                         isLoading = true
                         errorMessage = null
                         scope.launch {
-                            when (val result = makeLoginRequest(email, password)) {
+                            when (val result = StreamApi.makeLoginRequest(email, password)) {
                                 is AuthResult.Success -> {
                                     isLoading = false
                                     onLoginSuccess(result.token)
@@ -712,40 +660,6 @@ fun LoginScreen(
     }
 }
 
-
-suspend fun makeGetGamesRequest(token: String): GamesResult = withContext(Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/games")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        val response = client.newCall(request).execute()
-
-        val body = response.body()?.string() ?: "[]"
-        if (response.isSuccessful) {
-            val json = JSONArray(body)
-            val games = mutableListOf<JSONObject>()
-            for (i in 0 until json.length()) {
-                val game = json.getJSONObject(i)
-                games.add(game)
-            }
-            GamesResult.Success(games)
-        } else {
-            // Log server details internally; don't expose HTTP codes/body to UI
-            val code = response.code()
-            Log.w("Games", "Get games failed: HTTP $code")
-            GamesResult.Error("Sessione scaduta. Accedi di nuovo.", isAuthError = code == 401)
-        }
-
-    } catch (e: Exception) {
-        Log.e("Games", "Get games request failed", e)
-        GamesResult.Error("Connessione non riuscita. Controlla la rete e riprova.")
-    }
-}
-
-
 @Composable
 fun DashboardScreen(
     token: String,
@@ -759,10 +673,30 @@ fun DashboardScreen(
     val context = LocalContext.current
     val activity = context as Activity
 
+    val tourController = rememberTourController(
+        tourKey = TourManager.KEY_DASHBOARD,
+        steps = listOf(
+            TourStep(
+                id = "match_card",
+                emoji = "🏐",
+                title = context.getString(R.string.tour_dashboard_step1_title),
+                body = context.getString(R.string.tour_dashboard_step1_body),
+                highlightKey = "match_card"
+            ),
+            TourStep(
+                id = "fab_create",
+                emoji = "➕",
+                title = context.getString(R.string.tour_dashboard_step2_title),
+                body = context.getString(R.string.tour_dashboard_step2_body),
+                highlightKey = "fab_create"
+            )
+        )
+    )
+
     fun loadStreams() {
         scope.launch {
             isRefreshing.value = true
-            when (val result = makeGetGamesRequest(token)) {
+            when (val result = StreamApi.makeGetGamesRequest(token)) {
                 is GamesResult.Success -> {
                     val streamInfos = result.games.map { json ->
                         StreamInfo(
@@ -847,9 +781,10 @@ fun DashboardScreen(
             },
             floatingActionButton = {
                 ExtendedFloatingActionButton(
+                    modifier = Modifier.Companion.tourHighlight(tourController, "fab_create", RoundedCornerShape(16.dp)),
                     onClick = {
                         if (
-                                RemoteConfigManager.isRewardedEnabled() &&
+                                RemoteConfigManager.isCreateMatchEnabled() &&
                                 (context as MainActivity).isRewardedAdLoaded
                             ) {
                             (context as MainActivity).rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
@@ -908,6 +843,7 @@ fun DashboardScreen(
                     ) {
                         items(streams) { stream ->
                             SpikeStreamGlassCard(
+                                modifier = Modifier.tourHighlight(tourController, "match_card", RoundedCornerShape(24.dp)),
                                 onClick = {
                                     val intent = Intent(context, MatchOptionsActivity::class.java).apply {
                                         putExtra("TEAM_1", stream.teamA)
@@ -974,30 +910,9 @@ fun DashboardScreen(
                 }
             }
         }
+        TourOverlay(controller = tourController)
     }
 }
-
-
-
-suspend fun makeDeleteMatch(token: String, matchId: String): Boolean = withContext(
-    Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/games/$matchId")
-            .addHeader("Authorization", "Bearer $token")
-            .delete()
-            .build()
-
-        val response = client.newCall(request).execute()
-        response.isSuccessful
-
-    } catch (e: Exception) {
-        Log.e("Games", "Delete match failed", e)
-        false
-    }
-}
-
 
 @Composable
 fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Unit) {
@@ -1083,7 +998,7 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
                         isLoading = true
                         message = null
                         scope.launch {
-                            val result = makeRegisterRequest(email, password)
+                            val result = StreamApi.makeRegisterRequest(email, password)
                             message = result
                             isLoading = false
                             if (result?.startsWith("Success") == true) {
@@ -1103,38 +1018,5 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
                 )
             }
         }
-    }
-}
-
-
-
-suspend fun makeRegisterRequest(email: String, password: String): String? = withContext(Dispatchers.IO) {
-    try {
-        val client = getHttpClient()
-        val json = JSONObject()
-        json.put("email", email)
-        json.put("password", password)
-
-        val mediaType = MediaType.get("application/json; charset=utf-8")
-        val requestBody = RequestBody.create(mediaType, json.toString())
-
-        val request = Request.Builder()
-            .url("${Constants.BASE_URL}/users")
-            .post(requestBody)
-            .build()
-
-        val response = client.newCall(request).execute()
-
-        if (response.isSuccessful) {
-            "Success! Controlla l'email per confermare."
-        } else {
-            // Log server detail privately; show user a generic message
-            Log.w("Auth", "Register failed: HTTP ${response.code()}")
-            "Registrazione non riuscita. Controlla i dati e riprova."
-        }
-
-    } catch (e: Exception) {
-        Log.e("Auth", "Register request failed", e)
-        "Connessione non riuscita. Controlla la rete e riprova."
     }
 }

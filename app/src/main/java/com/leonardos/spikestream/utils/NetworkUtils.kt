@@ -1,4 +1,4 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.utils
 
 import okhttp3.OkHttpClient
 

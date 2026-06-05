@@ -1,6 +1,7 @@
-package com.leonardos.spikestream
+package com.leonardos.spikestream.utils
 
 import android.util.Log
+import com.leonardos.spikestream.BuildConfig
 
 /**
  * Logger utility that only outputs logs when the app is in DEBUG mode.
