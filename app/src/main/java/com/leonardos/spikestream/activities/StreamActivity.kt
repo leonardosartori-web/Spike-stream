@@ -96,7 +96,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         val id_match = intent.getStringExtra("MATCH_ID") ?: ""
         val cameraId = intent.getStringExtra("CAMERA_ID") ?: "0"
         val overlayPositionString = intent.getStringExtra("OVERLAY_POSITION") ?: "BOTTOM"
-        
+
         val team1Accent = intent.getIntExtra(
             "TEAM1_ACCENT",
             DefaultOverlayStyle.classic.team1.accent
@@ -110,7 +110,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
         currentTeam2Pts = intent.getIntExtra("TEAM2_PTS", 0)
         currentTeam1Sets = intent.getIntExtra("TEAM1_SETS", 0)
         currentTeam2Sets = intent.getIntExtra("TEAM2_SETS", 0)
-        
+
         translatePosition = when (overlayPositionString) {
             "BOTTOM_LEFT" -> TranslateTo.BOTTOM_LEFT
             "BOTTOM_RIGHT" -> TranslateTo.BOTTOM_RIGHT
@@ -146,15 +146,12 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                     val isPortrait =
                         resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
                     rtmpCamera.stopStream()
-                    rtmpCamera.prepareVideo(
-                        width,
-                        height,
-                        25,
-                        900 * 1024,
-                        2,
-                        if (isPortrait) 90 else 0,
-                        VideoEncoder.H264,
-                        VideoProfile.HDR_NONE
+                    networkManager.prepareVideoCompat(
+                        camera   = rtmpCamera,
+                        width    = width,
+                        height   = height,
+                        bitrate  = 900 * 1024,
+                        rotation = if (isPortrait) 90 else 0
                     )
                     rtmpCamera.prepareAudio(128 * 1024, 48000, true)
                     rtmpCamera.startStream(rtmpUrl)
@@ -269,6 +266,22 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
             }
         }
 
+        // Forza keyframe periodici ogni 2s: fix per encoder hardware (Android < S) che ignorano
+        // KEY_I_FRAME_INTERVAL causando GOP da ~11s. Su Android S+ prepareVideoModern già
+        // garantisce GOP corretto — il forcing sarebbe ridondante e aumenterebbe il bitrate.
+        /*if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            LaunchedEffect(isStreamingState) {
+                if (isStreamingState) {
+                    while (true) {
+                        kotlinx.coroutines.delay(2_000L)
+                        if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
+                            rtmpCamera.requestKeyFrame()
+                        }
+                    }
+                }
+            }
+        }*/
+
         // Restores full state when changing screen orientation to prevent issues
         LaunchedEffect(isPortrait) {
             if (isStreamingState) {
@@ -321,7 +334,7 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             val (resBase, bitrateSelected, _) = networkManager.estimateNetworkQuality()
                             val (width, height) = networkManager.getDimsForOrientation(isPortrait, resBase)
 
-                            rtmpCamera.prepareVideo(width, height, 25, bitrateSelected, 2, if (!isPortrait) 0 else 90)
+                            rtmpCamera.prepareVideo(width, height, 25, bitrateSelected, 1, if (!isPortrait) 0 else 90)
                             rtmpCamera.prepareAudio(128 * 1024, 48000, true)
 
                             /*val bitmapSfondo = BitmapFactory.decodeResource(ctx.resources, R.mipmap.ic_launcher_background)
@@ -397,7 +410,9 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                 Text(
                     stringResource(R.string.wifi_warning),
                     color = Color.Yellow,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(16.dp)
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(16.dp)
                 )
             }
 
@@ -426,7 +441,10 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                         isStreamingState = false
                         brightnessManager.restore()
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).widthIn(min = 200.dp)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp)
+                        .widthIn(min = 200.dp)
                 )
             } else {
                 SpikeStreamPrimaryButton(
@@ -436,7 +454,15 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                         val (resBase, bitrateSelected, _) = networkManager.estimateNetworkQuality()
                         val (width, height) = networkManager.getDimsForOrientation(isPortrait, resBase)
 
-                        if (rtmpCamera.prepareVideo(width, height, 25, bitrateSelected, 2, if (!isPortrait) 0 else 90, VideoEncoder.H264, VideoProfile.HDR_NONE) &&
+                        val preparedVideo = networkManager.prepareVideoCompat(
+                            camera   = rtmpCamera,
+                            width    = width,
+                            height   = height,
+                            bitrate  = bitrateSelected,
+                            rotation = if (!isPortrait) 0 else 90
+                        )
+
+                        if (preparedVideo &&
                             rtmpCamera.prepareAudio(128 * 1024, 48000, true)
                         ) {
                             overlayController.applyOverlay(
@@ -461,7 +487,10 @@ class StreamActivity : ComponentActivity(), ConnectCheckerRtmp {
                             brightnessManager.setDimmed(true)
                         }
                     },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).widthIn(min = 200.dp)
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp)
+                        .widthIn(min = 200.dp)
                 )
             }
         }

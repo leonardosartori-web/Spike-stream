@@ -67,7 +67,7 @@ class StreamBitrateMonitor(
                 handler.post {
                     if (width != lastWidth || height != lastHeight) {
                         lastAdjustTime = System.currentTimeMillis()
-                        
+
                         // Execute callback for video resolution change and soft-restart
                         onSoftRestart(width, height)
 

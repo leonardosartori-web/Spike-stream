@@ -178,7 +178,7 @@ class MatchOptionsActivity : ComponentActivity() {
 
                         // 1. Funzione isolata e riutilizzabile per caricare l'Ad ogni volta che serve
                         fun loadAd() {
-                            adLoadingState.value = true
+                            adLoadingState.value = RemoteConfigManager.isInvitationLinkEnabled()
                             val adRequest = AdRequest.Builder().build()
                             RewardedInterstitialAd.load(
                                 this@MatchOptionsActivity,
