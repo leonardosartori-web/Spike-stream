@@ -186,6 +186,10 @@
     <string name="yt_load_success">YouTube RTMP loaded!</string>
     <string name="yt_load_error">Could not find YouTube stream. Check if Live is enabled.</string>
     <string name="yt_rate_limit_error">Too many requests. Try again in a few minutes.</string>
+    <string name="yt_streams_loaded">%1$d YouTube stream keys loaded</string>
+    <string name="yt_stream_select_title">Select a YouTube stream</string>
+    <string name="yt_stream_default_label">%1$s (create a new match)</string>
+    <string name="yt_cache_loaded">Showing the last saved YouTube stream list.</string>
     <string name="fb_load_success">Facebook RTMP loaded!</string>
     <string name="fb_load_error">Facebook RTMP error. Check your permissions.</string>
     <string name="yt_login_error">Google Login failed</string>
@@ -198,6 +202,14 @@
     <string name="or_social_rtmp">Or load the address from a social network:</string>
     <string name="recent_loaded_toast">Recent address loaded!</string>
     <string name="default_color">Default colors</string>
+    <string name="team_color_picker_title">%1$s color</string>
+    <string name="team_color_change">Change %1$s color</string>
+    <string name="team_color_selected">Selected color</string>
+    <string name="team_color_quick">Quick colors</string>
+    <string name="team_color_hue">Hue</string>
+    <string name="team_color_saturation">Saturation</string>
+    <string name="team_color_brightness">Brightness</string>
+    <string name="team_color_apply">Apply</string>
 
     <!-- Tour -->
     <string name="tour_skip">Skip</string>

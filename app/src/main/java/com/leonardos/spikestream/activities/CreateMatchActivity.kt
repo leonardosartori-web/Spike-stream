@@ -3,6 +3,7 @@ package com.leonardos.spikestream.activities
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
@@ -10,6 +11,7 @@ import com.leonardos.spikestream.utils.Logger as Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -78,6 +81,8 @@ import com.leonardos.spikestream.ui.theme.SpikeStreamTextField
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
 import kotlinx.coroutines.launch
 import com.leonardos.spikestream.data.*
+import org.json.JSONArray
+import org.json.JSONObject
 
 
 class CreateMatchActivity: ComponentActivity() {
@@ -92,6 +97,7 @@ class CreateMatchActivity: ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         tokenManager = TokenManager(applicationContext)
         callbackManager = CallbackManager.Factory.create()
 
@@ -159,6 +165,10 @@ class CreateMatchActivity: ComponentActivity() {
         var streamUrl by remember { mutableStateOf("rtmp://") }
         var isLoading by remember { mutableStateOf(false) }
         var isYouTubeLoading by remember { mutableStateOf(false) }
+        var availableYouTubeStreams by remember {
+            mutableStateOf<List<YouTubeStreamDestination>>(emptyList())
+        }
+        var showYouTubeStreamsDialog by remember { mutableStateOf(false) }
 
         // Gestione RTMP Recenti (Sincronizzati da MainActivity)
         val masterKey = remember { MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build() }
@@ -235,6 +245,8 @@ class CreateMatchActivity: ComponentActivity() {
                             val resultRtmp = StreamApi.fetchFacebookRTMP(fbAccessToken, token!!)
                             if (resultRtmp != null) {
                                 streamUrl = resultRtmp
+                                availableYouTubeStreams = emptyList()
+                                showYouTubeStreamsDialog = false
                                 Toast.makeText(context, context.getString(R.string.fb_load_success), Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, context.getString(R.string.fb_load_error), Toast.LENGTH_LONG).show()
@@ -261,24 +273,70 @@ class CreateMatchActivity: ComponentActivity() {
                 val account = task.getResult(ApiException::class.java)
                 if (account != null) {
                     scope.launch {
+                        val jwtToken = token
+                        if (jwtToken == null) {
+                            isYouTubeLoading = false
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.token_not_found),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@launch
+                        }
+
                         isYouTubeLoading = true
-                        val result = StreamApi.fetchYouTubeRTMP(context, account, token!!)
+                        val accountKey = account.id ?: account.email.orEmpty()
+                        val result = StreamApi.fetchYouTubeRTMP(context, account, jwtToken)
                         when (result) {
                             is YouTubeFetchResult.Success -> {
-                                streamUrl = result.rtmpUrl
-                                Toast.makeText(context, context.getString(R.string.yt_load_success), Toast.LENGTH_SHORT).show()
+                                availableYouTubeStreams = result.streams
+                                showYouTubeStreamsDialog = true
+                                cacheYouTubeStreams(prefs, accountKey, result.streams)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        R.string.yt_streams_loaded,
+                                        result.streams.size
+                                    ),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            is YouTubeFetchResult.NoStreams -> {
+                                availableYouTubeStreams = emptyList()
+                                showYouTubeStreamsDialog = false
+                                clearYouTubeStreamCache(prefs, accountKey)
+                                Toast.makeText(context, context.getString(R.string.yt_load_error), Toast.LENGTH_LONG).show()
                             }
                             is YouTubeFetchResult.RateLimit -> {
-                                Toast.makeText(context, context.getString(R.string.yt_rate_limit_error), Toast.LENGTH_LONG).show()
+                                val cachedStreams = loadCachedYouTubeStreams(prefs, accountKey)
+                                if (cachedStreams.isNotEmpty()) {
+                                    availableYouTubeStreams = cachedStreams
+                                    showYouTubeStreamsDialog = true
+                                    Toast.makeText(context, context.getString(R.string.yt_cache_loaded), Toast.LENGTH_LONG).show()
+                                } else {
+                                    showYouTubeStreamsDialog = false
+                                    Toast.makeText(context, context.getString(R.string.yt_rate_limit_error), Toast.LENGTH_LONG).show()
+                                }
                             }
                             is YouTubeFetchResult.Error -> {
-                                Toast.makeText(context, context.getString(R.string.yt_load_error), Toast.LENGTH_LONG).show()
+                                val cachedStreams = loadCachedYouTubeStreams(prefs, accountKey)
+                                if (cachedStreams.isNotEmpty()) {
+                                    availableYouTubeStreams = cachedStreams
+                                    showYouTubeStreamsDialog = true
+                                    Toast.makeText(context, context.getString(R.string.yt_cache_loaded), Toast.LENGTH_LONG).show()
+                                } else {
+                                    showYouTubeStreamsDialog = false
+                                    Toast.makeText(context, context.getString(R.string.yt_load_error), Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                         isYouTubeLoading = false
                     }
+                } else {
+                    isYouTubeLoading = false
                 }
             } catch (e: Exception) {
+                isYouTubeLoading = false
                 Log.e("YouTubeAuth", "Sign in failed", e)
                 Toast.makeText(context, context.getString(R.string.yt_login_error), Toast.LENGTH_SHORT).show()
             }
@@ -525,7 +583,9 @@ class CreateMatchActivity: ComponentActivity() {
                     ) {
                         // Bottone YouTube (Secondario, sottile OutlinedButton)
                         OutlinedButton(
-                            onClick = { 
+                            onClick = {
+                                isYouTubeLoading = true
+                                showYouTubeStreamsDialog = false
                                 googleSignInClient.signOut().addOnCompleteListener {
                                     launcher.launch(googleSignInClient.signInIntent)
                                 }
@@ -613,9 +673,186 @@ class CreateMatchActivity: ComponentActivity() {
 
 
             }
+
+            if (showYouTubeStreamsDialog && availableYouTubeStreams.isNotEmpty()) {
+                SpikeStreamDialog(
+                    onDismissRequest = { showYouTubeStreamsDialog = false },
+                    title = stringResource(R.string.yt_stream_select_title),
+                    icon = {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.Red,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    },
+                    content = {
+                        Column(
+                            modifier = Modifier
+                                .heightIn(max = 420.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            availableYouTubeStreams.forEach { stream ->
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            streamUrl = stream.rtmpUrl
+                                            showYouTubeStreamsDialog = false
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.yt_load_success),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                    color = if (stream.rtmpUrl == streamUrl) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                    } else {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f)
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            Modifier
+                                                .size(8.dp)
+                                                .background(
+                                                    if (stream.status.equals("active", ignoreCase = true)) {
+                                                        Color(0xFF2E7D32)
+                                                    } else {
+                                                        MaterialTheme.colorScheme.outline
+                                                    },
+                                                    CircleShape
+                                                )
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (stream.isDefault) {
+                                                    stringResource(
+                                                        R.string.yt_stream_default_label,
+                                                        stream.displayName
+                                                    )
+                                                } else {
+                                                    stream.displayName
+                                                },
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = listOf(stream.protocol, stream.status)
+                                                    .filter { it.isNotBlank() }
+                                                    .joinToString(" • "),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showYouTubeStreamsDialog = false }) {
+                            Text(stringResource(R.string.close_button), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                )
+            }
             TourOverlay(controller = tourController)
         }
     }
+
+    private fun cacheYouTubeStreams(
+        prefs: SharedPreferences,
+        accountKey: String,
+        streams: List<YouTubeStreamDestination>
+    ) {
+        if (accountKey.isBlank() || streams.isEmpty()) return
+
+        val json = JSONArray()
+        streams.forEach { stream ->
+            json.put(
+                JSONObject().apply {
+                    put("id", stream.id)
+                    put("title", stream.title)
+                    put("label", stream.label)
+                    put("rtmpUrl", stream.rtmpUrl)
+                    put("protocol", stream.protocol)
+                    put("status", stream.status)
+                }
+            )
+        }
+
+        prefs.edit()
+            .putString(youtubeCacheKey(accountKey, "streams"), json.toString())
+            .putLong(youtubeCacheKey(accountKey, "timestamp"), System.currentTimeMillis())
+            .apply()
+    }
+
+    private fun loadCachedYouTubeStreams(
+        prefs: SharedPreferences,
+        accountKey: String
+    ): List<YouTubeStreamDestination> {
+        if (accountKey.isBlank()) return emptyList()
+
+        val timestampKey = youtubeCacheKey(accountKey, "timestamp")
+        val streamsKey = youtubeCacheKey(accountKey, "streams")
+        val cachedAt = prefs.getLong(timestampKey, 0L)
+        val age = System.currentTimeMillis() - cachedAt
+        if (cachedAt <= 0L || age !in 0..YOUTUBE_STREAM_CACHE_MAX_AGE_MS) {
+            prefs.edit().remove(timestampKey).remove(streamsKey).apply()
+            return emptyList()
+        }
+
+        val rawJson = prefs.getString(streamsKey, null) ?: return emptyList()
+        return try {
+            val json = JSONArray(rawJson)
+            buildList {
+                for (index in 0 until json.length()) {
+                    val item = json.optJSONObject(index) ?: continue
+                    val rtmpUrl = item.optString("rtmpUrl", "").trim()
+                    if (!rtmpUrl.startsWith("rtmp://", ignoreCase = true) &&
+                        !rtmpUrl.startsWith("rtmps://", ignoreCase = true)
+                    ) {
+                        continue
+                    }
+
+                    add(
+                        YouTubeStreamDestination(
+                            id = item.optString("id", ""),
+                            title = item.optString("title", ""),
+                            label = item.optString("label", ""),
+                            rtmpUrl = rtmpUrl,
+                            protocol = item.optString("protocol", ""),
+                            status = item.optString("status", "")
+                        )
+                    )
+                }
+            }.distinctBy { it.rtmpUrl }
+        } catch (e: Exception) {
+            Log.w("YouTubeCache", "Ignoring invalid cached stream list")
+            prefs.edit().remove(timestampKey).remove(streamsKey).apply()
+            emptyList()
+        }
+    }
+
+    private fun clearYouTubeStreamCache(prefs: SharedPreferences, accountKey: String) {
+        if (accountKey.isBlank()) return
+        prefs.edit()
+            .remove(youtubeCacheKey(accountKey, "streams"))
+            .remove(youtubeCacheKey(accountKey, "timestamp"))
+            .apply()
+    }
+
+    private fun youtubeCacheKey(accountKey: String, value: String): String =
+        "youtube_stream_cache_${accountKey}_$value"
 
     private fun validateInput(team1: String, team2: String, streamUrl: String): Boolean {
         return when {
@@ -634,5 +871,9 @@ class CreateMatchActivity: ComponentActivity() {
             }
             else -> true
         }
+    }
+
+    private companion object {
+        const val YOUTUBE_STREAM_CACHE_MAX_AGE_MS = 24L * 60L * 60L * 1000L
     }
 }

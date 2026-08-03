@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Exclude the DataStore file containing the JWT auth token from backup.
-    Restoring a backup on another device would grant full session access without re-login.
-    API 12+ (uses data-extraction-rules)
--->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="dataStore" path="user_prefs.preferences_pb"/>
+        <exclude
+            domain="file"
+            path="datastore/user_prefs.preferences_pb" />
+
+        <exclude
+            domain="sharedpref"
+            path="secure_user_prefs.xml" />
     </cloud-backup>
+
     <device-transfer>
-        <exclude domain="dataStore" path="user_prefs.preferences_pb"/>
+        <exclude
+            domain="file"
+            path="datastore/user_prefs.preferences_pb" />
+
+        <exclude
+            domain="sharedpref"
+            path="secure_user_prefs.xml" />
     </device-transfer>
 </data-extraction-rules>

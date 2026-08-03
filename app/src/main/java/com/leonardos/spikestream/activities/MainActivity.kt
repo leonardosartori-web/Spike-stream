@@ -12,6 +12,7 @@ import android.os.Bundle
 import com.leonardos.spikestream.utils.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
@@ -178,6 +179,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         appUpdateManager = AppUpdateManagerFactory.create(this)
 
@@ -744,7 +746,7 @@ fun DashboardScreen(
         loadStreams()
     }
 
-    SpikeStreamScreen {
+    SpikeStreamScreen(applySafeInsets = false) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {

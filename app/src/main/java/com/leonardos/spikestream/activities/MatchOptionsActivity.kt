@@ -14,6 +14,7 @@ import android.os.Bundle
 import com.leonardos.spikestream.utils.Logger as Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,8 +43,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,6 +65,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -104,7 +110,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import yuku.ambilwarna.AmbilWarnaDialog
 
 
 sealed class InviteResult {
@@ -120,6 +125,7 @@ class MatchOptionsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         tokenManager = TokenManager(applicationContext)
 
         val teamA = intent.getStringExtra("TEAM_1") ?: ""
@@ -362,58 +368,33 @@ fun MatchOptionsScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-
-                TeamAccentEditor(
+            SpikeStreamGlassCard {
+                TeamAccentRow(
+                    teamName = teamA,
                     currentColor = Color(overlayStyle.team1.accent),
                     onColorSelected = { color ->
-
                         val intColor = color.toArgb()
-
                         overlayStyle = overlayStyle.copy(
                             team1 = overlayStyle.team1.copy(accent = intColor)
                         )
-
                         scope.launch {
-                            OverlayStyleStorage.setTeamAccent(
-                                context,
-                                teamA,
-                                intColor
-                            )
+                            OverlayStyleStorage.setTeamAccent(context, teamA, intColor)
                         }
                     }
                 )
 
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.height(12.dp))
 
-                Text(
-                    text = "$teamA vs $teamB",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black),
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(Modifier.width(12.dp))
-
-                TeamAccentEditor(
+                TeamAccentRow(
+                    teamName = teamB,
                     currentColor = Color(overlayStyle.team2.accent),
                     onColorSelected = { color ->
-
                         val intColor = color.toArgb()
-
                         overlayStyle = overlayStyle.copy(
                             team2 = overlayStyle.team2.copy(accent = intColor)
                         )
-
                         scope.launch {
-                            OverlayStyleStorage.setTeamAccent(
-                                context,
-                                teamB,
-                                intColor
-                            )
+                            OverlayStyleStorage.setTeamAccent(context, teamB, intColor)
                         }
                     }
                 )
@@ -703,37 +684,262 @@ fun MatchOptionsScreen(
 }
 
 @Composable
-fun TeamAccentEditor(
+private fun TeamAccentRow(
+    teamName: String,
     currentColor: Color,
     onColorSelected: (Color) -> Unit
 ) {
-    val context = LocalContext.current
-    var colorInt = currentColor.toArgb()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = teamName,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Black
+        )
+        Spacer(Modifier.width(16.dp))
+        TeamAccentEditor(
+            teamName = teamName,
+            currentColor = currentColor,
+            onColorSelected = onColorSelected
+        )
+    }
+}
 
+@Composable
+fun TeamAccentEditor(
+    teamName: String,
+    currentColor: Color,
+    onColorSelected: (Color) -> Unit
+) {
+    var showColorDialog by remember { mutableStateOf(false) }
+    var draftColor by remember { mutableStateOf(currentColor) }
+    val iconColor = if (currentColor.luminance() > 0.52f) Color.Black else Color.White
 
     Box(
         modifier = Modifier
-            .size(18.dp)
+            .size(44.dp)
             .clip(CircleShape)
             .background(currentColor)
-            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+            .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
             .clickable {
+                draftColor = currentColor
+                showColorDialog = true
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Edit,
+            contentDescription = stringResource(R.string.team_color_change, teamName),
+            tint = iconColor,
+            modifier = Modifier.size(21.dp)
+        )
+    }
 
-                val dialog = AmbilWarnaDialog(
-                    context,
-                    colorInt,
-                    object : AmbilWarnaDialog.OnAmbilWarnaListener {
-                        override fun onOk(dialog: AmbilWarnaDialog?, color: Int) {
-                            onColorSelected(Color(color))
-                        }
+    if (showColorDialog) {
+        val hsv = FloatArray(3).also {
+            android.graphics.Color.colorToHSV(draftColor.toArgb(), it)
+        }
+        val presetColors = remember {
+            listOf(
+                Color(0xFFDC2626), Color(0xFFEA580C), Color(0xFFF59E0B),
+                Color(0xFF16A34A), Color(0xFF0D9488), Color(0xFF0891B2),
+                Color(0xFF2563EB), Color(0xFF4F46E5), Color(0xFF7C3AED),
+                Color(0xFFC026D3), Color(0xFFDB2777), Color(0xFF475569)
+            )
+        }
 
-                        override fun onCancel(dialog: AmbilWarnaDialog?) {}
-                    }
+        SpikeStreamDialog(
+            onDismissRequest = { showColorDialog = false },
+            title = stringResource(R.string.team_color_picker_title, teamName),
+            icon = {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = draftColor,
+                    modifier = Modifier.size(34.dp)
                 )
+            },
+            content = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 480.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(58.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(draftColor)
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                            )
+                            Spacer(Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.team_color_selected),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                                )
+                                Text(
+                                    text = "#%06X".format(draftColor.toArgb() and 0xFFFFFF),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
+                    }
 
-                dialog.show()
+                    Spacer(Modifier.height(18.dp))
+
+                    Text(
+                        text = stringResource(R.string.team_color_quick),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    presetColors.chunked(6).forEach { rowColors ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            rowColors.forEach { color ->
+                                val isSelected =
+                                    (draftColor.toArgb() and 0xFFFFFF) ==
+                                        (color.toArgb() and 0xFFFFFF)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .border(
+                                            if (isSelected) 3.dp else 1.dp,
+                                            if (isSelected) {
+                                                MaterialTheme.colorScheme.onSurface
+                                            } else {
+                                                Color.White.copy(alpha = 0.35f)
+                                            },
+                                            CircleShape
+                                        )
+                                        .clickable { draftColor = color }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+
+                    ColorSlider(
+                        label = stringResource(R.string.team_color_hue),
+                        value = hsv[0],
+                        valueRange = 0f..360f,
+                        color = draftColor,
+                        onValueChange = { hue ->
+                            draftColor = Color(
+                                android.graphics.Color.HSVToColor(
+                                    floatArrayOf(hue, hsv[1], hsv[2])
+                                )
+                            )
+                        }
+                    )
+                    ColorSlider(
+                        label = stringResource(R.string.team_color_saturation),
+                        value = hsv[1],
+                        valueRange = 0f..1f,
+                        color = draftColor,
+                        onValueChange = { saturation ->
+                            draftColor = Color(
+                                android.graphics.Color.HSVToColor(
+                                    floatArrayOf(hsv[0], saturation, hsv[2])
+                                )
+                            )
+                        }
+                    )
+                    ColorSlider(
+                        label = stringResource(R.string.team_color_brightness),
+                        value = hsv[2],
+                        valueRange = 0f..1f,
+                        color = draftColor,
+                        onValueChange = { brightness ->
+                            draftColor = Color(
+                                android.graphics.Color.HSVToColor(
+                                    floatArrayOf(hsv[0], hsv[1], brightness)
+                                )
+                            )
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onColorSelected(draftColor)
+                        showColorDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = draftColor,
+                        contentColor = if (draftColor.luminance() > 0.52f) {
+                            Color.Black
+                        } else {
+                            Color.White
+                        }
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.team_color_apply),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showColorDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
-    )
+        )
+    }
+}
+
+@Composable
+private fun ColorSlider(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    color: Color,
+    onValueChange: (Float) -> Unit
+) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            colors = SliderDefaults.colors(
+                thumbColor = color,
+                activeTrackColor = color,
+                inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
+    }
 }
 
 

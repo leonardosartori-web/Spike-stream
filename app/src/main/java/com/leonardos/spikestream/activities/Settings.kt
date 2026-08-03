@@ -6,6 +6,7 @@ import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.ui.text.font.FontWeight
 import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
@@ -36,6 +37,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         tokenManager = TokenManager(applicationContext)
 

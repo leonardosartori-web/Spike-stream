@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Legacy backup rules (API < 31). Exclude the DataStore file that stores the JWT.
-    See https://developer.android.com/guide/topics/data/autobackup
--->
 <full-backup-content>
-    <exclude domain="dataStore" path="user_prefs.preferences_pb"/>
+    <exclude
+        domain="file"
+        path="datastore/user_prefs.preferences_pb" />
+
+    <exclude
+        domain="sharedpref"
+        path="secure_user_prefs.xml" />
 </full-backup-content>

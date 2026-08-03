@@ -58,7 +58,11 @@ class ScoreOverlayRenderer(
     context: Context
 ) {
 
-    private var cachedBitmap: Bitmap? = null
+    // RootEncoder uploads the image on its GL thread after setImage(). A small
+    // ring avoids mutating a bitmap that may still be in flight while also
+    // eliminating a large allocation on every score/flash frame.
+    private val bitmapPool = arrayOfNulls<Bitmap>(3)
+    private var bitmapPoolIndex = 0
     // ----------------------------------------------------
     // FONTS
     // ----------------------------------------------------
@@ -82,6 +86,7 @@ class ScoreOverlayRenderer(
     private var outerPadding = 0f
     private var rowHeight = 0f
     private var footerHeight = 0f
+    private var maxTeamTextSize = 0f
 
     val hd = 2.2f
 
@@ -160,9 +165,11 @@ class ScoreOverlayRenderer(
         typeface = interSemiBold
     }
 
-    private val watermarkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val watermarkPaint = Paint(
+        Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG or Paint.DITHER_FLAG
+    ).apply {
         textAlign = Align.RIGHT
-        typeface = interSemiBold
+        typeface = interBold
     }
 
     private val sideAccentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -182,11 +189,26 @@ class ScoreOverlayRenderer(
         return base / 1280f
     }
 
-    private fun recalc(scale: Float) {
+    private fun recalc(scale: Float, videoWidth: Int) {
         bitmapWidth = ((340 * REF_W / 1280f) * hd).toInt()
         bitmapHeight = ((105 * REF_H / 720f) * hd).toInt()
 
-        cachedBitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+        if (bitmapPool.any {
+                it == null ||
+                    it.isRecycled ||
+                    it.width != bitmapWidth ||
+                    it.height != bitmapHeight
+            }
+        ) {
+            for (index in bitmapPool.indices) {
+                bitmapPool[index] = Bitmap.createBitmap(
+                    bitmapWidth,
+                    bitmapHeight,
+                    Bitmap.Config.ARGB_8888,
+                )
+            }
+            bitmapPoolIndex = 0
+        }
 
         outerPadding = 4f * hd
 
@@ -196,11 +218,17 @@ class ScoreOverlayRenderer(
 
         val textScale = hd * 0.8f * scale
 
-        teamPaint.textSize = 24f * textScale
+        maxTeamTextSize = 24f * textScale
+        teamPaint.textSize = maxTeamTextSize
         pointsPaint.textSize = 32f * textScale
         setsWinPaint.textSize = 20f * textScale
         setsLosePaint.textSize = 20f * textScale
-        watermarkPaint.textSize = 12f * textScale
+        // At 480p the complete overlay is proportionally downscaled from the
+        // 720p design. Compensate only the small branding text so it preserves
+        // enough final pixels to remain legible.
+        val watermarkCompensation =
+            (REF_W / videoWidth.toFloat()).coerceIn(1f, 1.45f)
+        watermarkPaint.textSize = 12f * textScale * watermarkCompensation
     }
 
     // ----------------------------------------------------
@@ -227,6 +255,23 @@ class ScoreOverlayRenderer(
         )
     }
 
+    /**
+     * Keeps the current team-name size as the visual maximum and scales down
+     * only when the measured text would collide with the score card.
+     * Paint text width scales linearly with textSize, so one measurement is
+     * enough and avoids allocations/binary searches on every overlay update.
+     */
+    private fun fitTeamNameTextSize(text: String, availableWidth: Float) {
+        teamPaint.textSize = maxTeamTextSize
+        if (availableWidth <= 0f) return
+
+        val measuredWidth = teamPaint.measureText(text)
+        if (measuredWidth > availableWidth && measuredWidth > 0f) {
+            teamPaint.textSize =
+                maxTeamTextSize * (availableWidth / measuredWidth) * 0.98f
+        }
+    }
+
     // ----------------------------------------------------
     // RENDER
     // ----------------------------------------------------
@@ -242,7 +287,7 @@ class ScoreOverlayRenderer(
     ): Bitmap {
 
         val scale = computeScale(width)
-        recalc(scale)
+        recalc(scale, width)
 
         // ----------------------------
         // 🎨 GLOBAL STYLE
@@ -251,9 +296,14 @@ class ScoreOverlayRenderer(
         borderPaint.color = style.team1.border
         dividerPaint.color = style.team1.border
 
-        watermarkPaint.color = style.watermark
+        watermarkPaint.color = if (width < REF_W) {
+            Color.rgb(85, 85, 85)
+        } else {
+            style.watermark
+        }
 
-        val bmp = cachedBitmap ?: Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+        val bmp = requireNotNull(bitmapPool[bitmapPoolIndex])
+        bitmapPoolIndex = (bitmapPoolIndex + 1) % bitmapPool.size
         bmp.eraseColor(Color.TRANSPARENT)
         val canvas = Canvas(bmp)
 
@@ -348,10 +398,18 @@ class ScoreOverlayRenderer(
             // TEAM NAME
             // ----------------------------
             teamPaint.color = teamStyle.text
+            val displayName = name.uppercase()
+            val teamNameStartX = left + 30f * hd
+            val pointsCardLeft = right - 110f * hd
+            val teamNameEndX = pointsCardLeft - 12f * hd
+            fitTeamNameTextSize(
+                text = displayName,
+                availableWidth = teamNameEndX - teamNameStartX
+            )
 
             canvas.drawText(
-                name.uppercase(),
-                left + 30f * hd,
+                displayName,
+                teamNameStartX,
                 centerY - (teamPaint.ascent() + teamPaint.descent()) / 2 + yBoost,
                 teamPaint
             )

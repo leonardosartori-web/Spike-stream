@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
@@ -15,14 +14,14 @@ val localProps = Properties().also { props ->
 
 android {
     namespace = "com.leonardos.spikestream"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.leonardos.spikestream"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 50
-        versionName = "2.1"
+        targetSdk = 37
+        versionCode = 55
+        versionName = "2.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -51,6 +50,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -61,11 +61,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    kotlinOptions {
-        jvmTarget = "11"
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -77,9 +74,8 @@ dependencies {
 
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-config-ktx")
-    implementation("com.github.yukuku:ambilwarna:2.0.1")
 
-    implementation("com.github.pedroSG94.rtmp-rtsp-stream-client-java:rtplibrary:2.2.6")
+    implementation("com.github.pedroSG94.RootEncoder:library:2.8.0")
     implementation("io.socket:socket.io-client:2.1.0")                          // updated 2.0.1 → 2.1.0
     implementation("androidx.datastore:datastore-preferences:1.1.1")            // updated 1.0.0 → 1.1.1
     implementation("androidx.security:security-crypto:1.1.0-alpha06")           // NEW: encrypted token storage
@@ -88,6 +84,10 @@ dependencies {
     implementation("com.google.android.gms:play-services-ads:23.5.0")           // updated 22.6.0 → 23.5.0
     implementation("com.google.android.ump:user-messaging-platform:2.2.0")      // NEW: GDPR Consent Flow (AdMob requirement)
     implementation("com.google.android.play:app-update-ktx:2.1.0")               // NEW: In-app updates
+    // AdMob 23.5.0 still requests WorkManager 2.7.0/Room 2.2.5. That pair is
+    // incompatible with the current AGP/R8 release build and crashes inside
+    // InitializationProvider on a clean install before MainActivity starts.
+    implementation("androidx.work:work-runtime:2.11.2")
     implementation("org.slf4j:slf4j-nop:2.0.9")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

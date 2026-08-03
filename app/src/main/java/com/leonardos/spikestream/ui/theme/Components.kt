@@ -55,6 +55,7 @@ val PremiumButtonGradient
 fun SpikeStreamScreen(
     modifier: Modifier = Modifier,
     contentAlignment: Alignment = Alignment.TopStart,
+    applySafeInsets: Boolean = true,
     content: @Composable BoxScope.() -> Unit
 ) {
     MyApplicationTheme {
@@ -62,9 +63,17 @@ fun SpikeStreamScreen(
             modifier = modifier
                 .fillMaxSize()
                 .background(AppGradient),
-            contentAlignment = contentAlignment
         ) {
-            content()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (applySafeInsets) Modifier.safeDrawingPadding()
+                        else Modifier
+                    ),
+                contentAlignment = contentAlignment,
+                content = content,
+            )
         }
     }
 }

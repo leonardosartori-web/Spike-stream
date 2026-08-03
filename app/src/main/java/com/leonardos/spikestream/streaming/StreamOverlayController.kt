@@ -5,7 +5,7 @@ import com.leonardos.spikestream.ui.components.DefaultOverlayStyle
 import com.leonardos.spikestream.ui.components.ScoreOverlayRenderer
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.utils.gl.TranslateTo
-import com.pedro.rtplibrary.rtmp.RtmpCamera2
+import com.pedro.library.rtmp.RtmpCamera2
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,6 +24,11 @@ class StreamOverlayController(
     team1Accent: Int,
     team2Accent: Int
 ) {
+    private companion object {
+        const val REFERENCE_WIDTH = 1280
+        const val REFERENCE_HEIGHT = 720
+    }
+
     private val scoreRenderer = ScoreOverlayRenderer(team1, team2, context).apply {
         setStyle(
             DefaultOverlayStyle.classic.copy(
@@ -54,7 +59,7 @@ class StreamOverlayController(
     ) {
         removeOverlay(rtmpCamera) // Ensure previous filter is detached first
 
-        imageFilter = ImageObjectFilterRender().apply {
+        val filter = ImageObjectFilterRender().apply {
             setImage(
                 scoreRenderer.render(
                     width,
@@ -65,14 +70,19 @@ class StreamOverlayController(
                     team2Sets
                 )
             )
+            // The scoreboard bitmap is intentionally supersampled by `hd`.
+            // Always derive its percentage from the 720p design canvas: using
+            // the current 480p dimensions would make the same bitmap occupy
+            // almost 40% of the frame instead of the intended ~26.5%.
             setDefaultScale(
-                (width * scoreRenderer.hd).toInt(),
-                (height * scoreRenderer.hd).toInt()
+                (REFERENCE_WIDTH * scoreRenderer.hd).toInt(),
+                (REFERENCE_HEIGHT * scoreRenderer.hd).toInt(),
             )
             setPosition(overlayPosition)
         }
 
-        rtmpCamera.glInterface.addFilter(imageFilter)
+        imageFilter = filter
+        rtmpCamera.glInterface.addFilter(filter)
     }
 
     /**

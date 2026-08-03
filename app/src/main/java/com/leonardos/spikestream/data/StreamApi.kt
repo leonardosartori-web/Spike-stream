@@ -30,8 +30,28 @@ sealed class CreateMatchResult {
     data class Error(val message: Int) : CreateMatchResult()
 }
 
+data class YouTubeStreamDestination(
+    val id: String,
+    val title: String,
+    val label: String,
+    val rtmpUrl: String,
+    val protocol: String,
+    val status: String
+) {
+    val displayName: String
+        get() = label.ifBlank { title.ifBlank { "YouTube stream" } }
+
+    val isDefault: Boolean
+        get() = label.contains("default", ignoreCase = true) ||
+            title.contains("default", ignoreCase = true)
+}
+
 sealed class YouTubeFetchResult {
-    data class Success(val rtmpUrl: String) : YouTubeFetchResult()
+    data class Success(
+        val streams: List<YouTubeStreamDestination>,
+        val reportedCount: Int
+    ) : YouTubeFetchResult()
+    object NoStreams : YouTubeFetchResult()
     object RateLimit : YouTubeFetchResult()
     object Error : YouTubeFetchResult()
 }
@@ -203,14 +223,33 @@ object StreamApi {
 
             if (response.isSuccessful) {
                 val json = JSONObject(body)
-                val rtmp = json.optString("rtmpUrl", "")
-                if (rtmp.isNotEmpty()) {
-                    return@withContext YouTubeFetchResult.Success(rtmp)
+                val streamsJson = json.optJSONArray("streams")
+                val streams = if (streamsJson != null) {
+                    buildList {
+                        for (index in 0 until streamsJson.length()) {
+                            parseYouTubeStream(streamsJson.optJSONObject(index))?.let(::add)
+                        }
+                    }.distinctBy { it.rtmpUrl }
+                } else {
+                    // Compatibilità con la vecchia risposta { "rtmpUrl": "..." }
+                    listOfNotNull(parseYouTubeStream(json))
                 }
+
+                if (streams.isNotEmpty()) {
+                    val reportedCount = json.optInt("count", streams.size)
+                    if (streamsJson != null && reportedCount != streamsJson.length()) {
+                        Log.w(
+                            "YouTubeBackend",
+                            "Stream count mismatch: reported=$reportedCount, received=${streamsJson.length()}"
+                        )
+                    }
+                    return@withContext YouTubeFetchResult.Success(streams, reportedCount)
+                }
+                return@withContext YouTubeFetchResult.NoStreams
             } else if (response.code() == 429) {
                 return@withContext YouTubeFetchResult.RateLimit
             } else {
-                Log.e("YouTubeBackend", "Request failed: ${response.code()} - $body")
+                Log.e("YouTubeBackend", "Request failed: HTTP ${response.code()}")
             }
             YouTubeFetchResult.Error
         } catch (e: Exception) {
@@ -218,6 +257,34 @@ object StreamApi {
             YouTubeFetchResult.Error
         }
     }
+
+    private fun parseYouTubeStream(json: JSONObject?): YouTubeStreamDestination? {
+        if (json == null) return null
+
+        val directUrl = json.optString("rtmpUrl", "").trim()
+        val ingestionUrl = json.optString("ingestionUrl", "").trim().trimEnd('/')
+        val streamKey = json.optString("streamKey", "").trim().trimStart('/')
+        val rtmpUrl = when {
+            directUrl.isSupportedRtmpUrl() -> directUrl
+            ingestionUrl.isSupportedRtmpUrl() && streamKey.isNotEmpty() ->
+                "$ingestionUrl/$streamKey"
+            else -> return null
+        }
+
+        return YouTubeStreamDestination(
+            id = json.optString("id", ""),
+            title = json.optString("title", ""),
+            label = json.optString("label", ""),
+            rtmpUrl = rtmpUrl,
+            protocol = json.optString("protocol", "")
+                .ifBlank { rtmpUrl.substringBefore("://").uppercase() },
+            status = json.optString("status", "")
+        )
+    }
+
+    private fun String.isSupportedRtmpUrl(): Boolean =
+        startsWith("rtmp://", ignoreCase = true) ||
+            startsWith("rtmps://", ignoreCase = true)
 
     suspend fun fetchFacebookRTMP(fbAccessToken: String, appToken: String): String? = withContext(Dispatchers.IO) {
         try {
