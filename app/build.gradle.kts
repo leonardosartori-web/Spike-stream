@@ -20,8 +20,8 @@ android {
         applicationId = "com.leonardos.spikestream"
         minSdk = 24
         targetSdk = 37
-        versionCode = 55
-        versionName = "2.4"
+        versionCode = 58
+        versionName = "2.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -89,6 +89,7 @@ dependencies {
     // InitializationProvider on a clean install before MainActivity starts.
     implementation("androidx.work:work-runtime:2.11.2")
     implementation("org.slf4j:slf4j-nop:2.0.9")
+    implementation("com.google.zxing:core:3.5.3")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -114,6 +115,6 @@ dependencies {
     implementation(libs.google.auth)
 
     // Facebook Login
-    implementation("com.facebook.android:facebook-login:latest.release")
+    implementation("com.facebook.android:facebook-login:18.3.0")
 
 }

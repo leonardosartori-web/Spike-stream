@@ -89,6 +89,8 @@ class StreamOverlayController(
      * Removes the OpenGL overlay filter from the camera preview and stream.
      */
     fun removeOverlay(rtmpCamera: RtmpCamera2) {
+        flashJob?.cancel()
+        flashJob = null
         imageFilter?.let {
             try {
                 rtmpCamera.glInterface.removeFilter(it)

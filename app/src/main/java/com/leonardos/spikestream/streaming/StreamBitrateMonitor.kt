@@ -96,12 +96,33 @@ class StreamBitrateMonitor(
     private var lowFpsStartedAt = 0L
     private var lastDegradedAt = 0L
     private var pendingNetworkLoss: Runnable? = null
+    private val videoWatchdog = StreamVideoWatchdog()
+    private val watchdogTick = object : Runnable {
+        override fun run() {
+            if (!sessionActive) return
+            if (videoWatchdog.hasTimedOut(SystemClock.elapsedRealtime())) {
+                failPermanently("Il video non produce frame da 15 secondi")
+                return
+            }
+            mainHandler.postDelayed(this, 1_000L)
+        }
+    }
+
+    fun onMediaError(reason: String) {
+        runOnMain { if (sessionActive) failPermanently(reason) }
+    }
+
+    private fun stopWatchdog() {
+        mainHandler.removeCallbacks(watchdogTick)
+        videoWatchdog.stop()
+    }
 
     fun startObserving() {
         networkMonitor.start()
     }
 
     fun stopObserving() {
+        stopWatchdog()
         cancelPendingNetworkLoss()
         networkMonitor.stop()
     }
@@ -124,7 +145,13 @@ class StreamBitrateMonitor(
                 // RootEncoder implements this check with ICMP/Echo. CDNs and
                 // mobile networks commonly block Echo even while RTMP is healthy.
                 client.setCheckServerAlive(false)
-                client.shouldSendPings(true)
+                // RootEncoder 2.8.0 schedules client pings in a separate coroutine
+                // without catching socket errors (RtmpClient.handleMessages).
+                // A disconnect/retry can close its socket while a ping is pending,
+                // causing an uncaught SocketException and killing the whole app.
+                // Keep the library default: server ping replies and read/write
+                // failure detection still work without unsolicited client pings.
+                client.shouldSendPings(false)
                 client.shouldFailOnRead(true)
                 // Keep the operator readout stable without hiding changes for
                 // several seconds after a hand-off or an adaptive adjustment.
@@ -139,6 +166,9 @@ class StreamBitrateMonitor(
 
             profile = selectedProfile
             sessionActive = true
+            stopWatchdog()
+            videoWatchdog.start(SystemClock.elapsedRealtime())
+            mainHandler.postDelayed(watchdogTick, 1_000L)
             intentionalStop = false
             connectionLive = false
             retryScheduled = false
@@ -173,6 +203,7 @@ class StreamBitrateMonitor(
 
     fun endSession() {
         runOnMain {
+            stopWatchdog()
             cancelPendingNetworkLoss()
             intentionalStop = true
             sessionActive = false
@@ -279,6 +310,7 @@ class StreamBitrateMonitor(
     fun onFps(fps: Int) {
         runOnMain {
             if (!sessionActive) return@runOnMain
+            videoWatchdog.onFps(fps, SystemClock.elapsedRealtime())
             publish(telemetry.copy(fps = fps, health = calculateHealth(fps = fps)))
         }
     }
@@ -362,6 +394,7 @@ class StreamBitrateMonitor(
 
             cancelPendingNetworkLoss()
             val previous = telemetry.network
+            val previousStatus = telemetry.status
             publish(telemetry.copy(network = snapshot))
 
             val selectedProfile = profile ?: return@runOnMain
@@ -369,16 +402,31 @@ class StreamBitrateMonitor(
             val transportChanged =
                 previous.transport != NetworkTransport.NONE &&
                     previous.transport != snapshot.transport
+            val defaultNetworkChanged =
+                previous.networkHandle != 0L &&
+                    snapshot.networkHandle != 0L &&
+                    previous.networkHandle != snapshot.networkHandle
 
-            if (transportChanged) {
-                // TCP cannot migrate from Wi-Fi to mobile: reconnect immediately on
-                // the new default network instead of waiting for a long socket timeout.
+            if (transportChanged || defaultNetworkChanged) {
+                // TCP cannot migrate to another Android Network, even when both
+                // routes are Wi-Fi. Reconnect on the new default route instead of
+                // waiting for the old socket timeout.
                 val safeTarget = min(telemetry.targetVideoBitrate, bitrateCeiling(selectedProfile))
                     .coerceAtLeast(selectedProfile.minBitrate)
                 setTargetBitrate(safeTarget)
-                pendingRetryReason = "Cambio rete ${previous.transport} → ${snapshot.transport}"
+                pendingRetryReason = if (transportChanged) {
+                    "Cambio rete ${previous.transport} → ${snapshot.transport}"
+                } else {
+                    "Nuova rete ${snapshot.transport}"
+                }
                 scheduleRetry(pendingRetryReason!!, 250L)
-            } else if (recoveredInternet && !connectionLive) {
+            } else if (
+                recoveredInternet &&
+                !connectionLive &&
+                (previousStatus == BroadcastStatus.WAITING_NETWORK || pendingRetryReason != null)
+            ) {
+                // Do not restart the first RTMP negotiation merely because its
+                // initial network snapshot was delivered a few milliseconds late.
                 setTargetBitrate(
                     min(selectedProfile.startBitrate, bitrateCeiling(selectedProfile))
                 )
@@ -534,7 +582,7 @@ class StreamBitrateMonitor(
 
         val lowFps =
             selectedProfile != null &&
-                fps > 0 &&
+                fps >= 0 &&
                 fps < selectedProfile.fps * 7 / 10
         if (lowFps) {
             if (lowFpsStartedAt == 0L) lowFpsStartedAt = now
@@ -567,6 +615,7 @@ class StreamBitrateMonitor(
     }
 
     private fun failPermanently(reason: String) {
+        stopWatchdog()
         cancelPendingNetworkLoss()
         sessionActive = false
         connectionLive = false

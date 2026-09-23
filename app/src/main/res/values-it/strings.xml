@@ -58,11 +58,17 @@
     <string name="create_match">Crea match</string>
     <string name="create_match_error1">Inserisci nome squadra casa</string>
     <string name="create_match_error2">Inserisci nome squadra ospite</string>
-    <string name="create_match_error3">URL deve iniziare con rtmp://</string>
+    <string name="create_match_error3">Inserisci un URL RTMP o RTMPS completo.</string>
+    <string name="create_match_error_youtube_key">L’URL YouTube deve includere la stream key dopo /live2/.</string>
+    <string name="create_match_error_facebook_key">L’URL Facebook deve includere la stream key dopo /rtmp/.</string>
 
     <!-- Options -->
     <string name="copy_link">Link copiato negli appunti!</string>
     <string name="generate_link">Genera Link Invito</string>
+    <string name="scorer_qr_title">QR code segnapunti</string>
+    <string name="scorer_qr_scan">Scansiona questo QR code con il telefono del segnapunti per aprire i comandi del punteggio.</string>
+    <string name="share_link">Condividi link</string>
+    <string name="share_link_chooser">Condividi link segnapunti</string>
     <string name="score_editing_title_info">Come modificare il punteggio?</string>
     <string name="score_editing_full_info"><![CDATA[
     Per modificare il punteggio durante la diretta, è necessario generare un <b>link</b> prima della partita.<br/><br/>
@@ -236,4 +242,7 @@
     <string name="tour_options_step4_title">Anteprima LIVE!</string>
     <string name="tour_options_step4_body">Tutto pronto! Tocca questo pulsante per vedere l\'anteprima della telecamera con il segnapunti. \n💡 Ricordati di impostare correttamente la diretta sulla tua piattaforma (es: metti un bel titolo su YouTube) prima di avviare il flusso definitivo dalla schermata successiva!</string>
     <string name="settings_replay_tour">Rivedi i tutorial</string>
+    <string name="youtube_watch_match">Guarda partita su YouTube</string>
+    <string name="youtube_open_channel">Apri canale YouTube</string>
+    <string name="youtube_open_failed">Nessuna app disponibile per aprire YouTube.</string>
 </resources>

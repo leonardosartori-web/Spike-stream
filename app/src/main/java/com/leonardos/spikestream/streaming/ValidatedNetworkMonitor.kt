@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -21,13 +20,27 @@ class ValidatedNetworkMonitor(
     private var registered = false
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) = publish(network)
-
-        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-            publish(snapshotFromCapabilities(caps))
+        override fun onAvailable(network: Network) {
+            // Android 8+ guarantees an ordered onCapabilitiesChanged callback.
+            // Reading capabilities synchronously here is racy. Android 7 has no
+            // such guarantee, so use a short delayed fallback for API 24/25.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                mainHandler.postDelayed(
+                    { if (registered) publish(network) },
+                    LEGACY_CAPABILITIES_DELAY_MS,
+                )
+            }
         }
 
-        override fun onLost(network: Network) = publishCurrent()
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+            publish(snapshotFromCapabilities(network, caps))
+        }
+
+        override fun onLost(network: Network) {
+            // Resolve the new active network after the callback has unwound to
+            // avoid publishing the old route during a hand-off.
+            mainHandler.post { if (registered) publishCurrent() }
+        }
 
         override fun onUnavailable() = publish(NetworkSnapshot.disconnected())
     }
@@ -37,14 +50,9 @@ class ValidatedNetworkMonitor(
         registered = true
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                connectivityManager.registerDefaultNetworkCallback(callback)
-            } else {
-                val request = NetworkRequest.Builder()
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    .build()
-                connectivityManager.registerNetworkCallback(request, callback)
-            }
+            // registerDefaultNetworkCallback is available from API 24, which is
+            // exactly the application's minimum supported Android version.
+            connectivityManager.registerDefaultNetworkCallback(callback)
             publishCurrent()
         } catch (_: SecurityException) {
             registered = false
@@ -62,37 +70,18 @@ class ValidatedNetworkMonitor(
     }
 
     private fun publishCurrent() {
-        val snapshot = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val active = connectivityManager.activeNetwork
-            val caps = active?.let(connectivityManager::getNetworkCapabilities)
-            snapshotFromCapabilities(caps)
-        } else {
-            @Suppress("DEPRECATION")
-            val info = connectivityManager.activeNetworkInfo
-            if (info?.isConnected == true) {
-                @Suppress("DEPRECATION")
-                val transport = when (info.type) {
-                    ConnectivityManager.TYPE_WIFI -> NetworkTransport.WIFI
-                    ConnectivityManager.TYPE_MOBILE -> NetworkTransport.CELLULAR
-                    ConnectivityManager.TYPE_ETHERNET -> NetworkTransport.ETHERNET
-                    else -> NetworkTransport.OTHER
-                }
-                NetworkSnapshot(
-                    available = true,
-                    validated = true, // VALIDATED does not exist before API 23.
-                    transport = transport,
-                    metered = connectivityManager.isActiveNetworkMetered,
-                    upstreamKbps = 0,
-                )
-            } else {
-                NetworkSnapshot.disconnected()
-            }
-        }
-        publish(snapshot)
+        val active = connectivityManager.activeNetwork
+        val caps = active?.let(connectivityManager::getNetworkCapabilities)
+        publish(snapshotFromCapabilities(active, caps))
     }
 
     private fun publish(network: Network) {
-        publish(snapshotFromCapabilities(connectivityManager.getNetworkCapabilities(network)))
+        publish(
+            snapshotFromCapabilities(
+                network,
+                connectivityManager.getNetworkCapabilities(network),
+            )
+        )
     }
 
     private fun publish(snapshot: NetworkSnapshot) {
@@ -103,16 +92,15 @@ class ValidatedNetworkMonitor(
         }
     }
 
-    private fun snapshotFromCapabilities(caps: NetworkCapabilities?): NetworkSnapshot {
+    private fun snapshotFromCapabilities(
+        network: Network?,
+        caps: NetworkCapabilities?,
+    ): NetworkSnapshot {
         if (caps == null) return NetworkSnapshot.disconnected()
 
         val hasInternetCapability =
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        val validated = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-        } else {
-            hasInternetCapability
-        }
+        val validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 
         val transport = when {
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> NetworkTransport.WIFI
@@ -128,7 +116,12 @@ class ValidatedNetworkMonitor(
             transport = transport,
             metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
             upstreamKbps = caps.linkUpstreamBandwidthKbps.coerceAtLeast(0),
+            networkHandle = network?.networkHandle ?: 0L,
         )
+    }
+
+    private companion object {
+        const val LEGACY_CAPABILITIES_DELAY_MS = 150L
     }
 }
 
@@ -138,6 +131,7 @@ data class NetworkSnapshot(
     val transport: NetworkTransport,
     val metered: Boolean,
     val upstreamKbps: Int,
+    val networkHandle: Long,
 ) {
     val hasUsableInternet: Boolean get() = available && validated
 
@@ -148,6 +142,7 @@ data class NetworkSnapshot(
             transport = NetworkTransport.NONE,
             metered = false,
             upstreamKbps = 0,
+            networkHandle = 0L,
         )
     }
 }

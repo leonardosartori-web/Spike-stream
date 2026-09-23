@@ -31,6 +31,7 @@ class StreamNetworkManager(private val context: Context) {
             transport = transport,
             metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
             upstreamKbps = caps.linkUpstreamBandwidthKbps.coerceAtLeast(0),
+            networkHandle = cm.activeNetwork?.networkHandle ?: 0L,
         )
     }
 

@@ -69,6 +69,8 @@ import com.leonardos.spikestream.BuildConfig
 import com.leonardos.spikestream.utils.Constants
 import com.leonardos.spikestream.R
 import com.leonardos.spikestream.utils.TourManager
+import com.leonardos.spikestream.utils.RtmpUrlValidation
+import com.leonardos.spikestream.utils.RtmpUrlValidator
 import com.leonardos.spikestream.ui.components.TourOverlay
 import com.leonardos.spikestream.ui.components.TourStep
 import com.leonardos.spikestream.ui.components.rememberTourController
@@ -163,6 +165,8 @@ class CreateMatchActivity: ComponentActivity() {
         var team1 by remember { mutableStateOf("") }
         var team2 by remember { mutableStateOf("") }
         var streamUrl by remember { mutableStateOf("rtmp://") }
+        var selectedYouTubeDestination by remember { mutableStateOf<YouTubeStreamDestination?>(null) }
+        val rtmpValidation = RtmpUrlValidator.validate(streamUrl)
         var isLoading by remember { mutableStateOf(false) }
         var isYouTubeLoading by remember { mutableStateOf(false) }
         var availableYouTubeStreams by remember {
@@ -245,6 +249,7 @@ class CreateMatchActivity: ComponentActivity() {
                             val resultRtmp = StreamApi.fetchFacebookRTMP(fbAccessToken, token!!)
                             if (resultRtmp != null) {
                                 streamUrl = resultRtmp
+                                selectedYouTubeDestination = null
                                 availableYouTubeStreams = emptyList()
                                 showYouTubeStreamsDialog = false
                                 Toast.makeText(context, context.getString(R.string.fb_load_success), Toast.LENGTH_SHORT).show()
@@ -435,11 +440,23 @@ class CreateMatchActivity: ComponentActivity() {
 
                     SpikeStreamTextField(
                         value = streamUrl,
-                        onValueChange = { streamUrl = it },
+                        onValueChange = {
+                            streamUrl = it
+                            selectedYouTubeDestination = null
+                        },
                         label = stringResource(R.string.url_rtmp_label),
                         leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth().tourHighlight(tourController, "rtmp", RoundedCornerShape(16.dp))
                     )
+
+                    if (streamUrl != "rtmp://" && rtmpValidation != RtmpUrlValidation.VALID) {
+                        Text(
+                            text = stringResource(rtmpValidation.errorMessageRes()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = 12.dp, top = 6.dp)
+                        )
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -458,6 +475,7 @@ class CreateMatchActivity: ComponentActivity() {
                                     .padding(vertical = 4.dp)
                                     .clickable {
                                         streamUrl = rtmp
+                                        selectedYouTubeDestination = null
                                         Toast.makeText(context, context.getString(R.string.recent_loaded_toast), Toast.LENGTH_SHORT).show()
                                     },
                                 colors = CardDefaults.cardColors(
@@ -534,6 +552,7 @@ class CreateMatchActivity: ComponentActivity() {
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable { 
                                                     streamUrl = rtmp
+                                                    selectedYouTubeDestination = null
                                                     showRecentMenu = false
                                                 },
                                             color = Color.Transparent
@@ -639,17 +658,20 @@ class CreateMatchActivity: ComponentActivity() {
                         modifier = Modifier.fillMaxWidth().tourHighlight(tourController, "create_btn", RoundedCornerShape(16.dp)),
                         text = stringResource(R.string.create_match),
                         isLoading = isLoading,
-                        enabled = team1.isNotBlank() && team2.isNotBlank() && (streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://")),
+                        enabled = team1.isNotBlank() && team2.isNotBlank() && rtmpValidation == RtmpUrlValidation.VALID,
                         onClick = {
                             if (validateInput(team1, team2, streamUrl)) {
                                 if (token != null) {
                                     isLoading = true
                                     scope.launch {
-                                        when (val result = StreamApi.makeCreateMatchRequest(token!!, team1, team2, streamUrl)) {
+                                        val normalizedStreamUrl = streamUrl.trim()
+                                        when (val result = StreamApi.makeCreateMatchRequest(
+                                            token!!, team1, team2, normalizedStreamUrl, selectedYouTubeDestination
+                                        )) {
                                             is CreateMatchResult.Success -> {
                                                 // Salva l'RTMP nei recenti
                                                 val updatedSet = recentRtmps.toMutableSet()
-                                                updatedSet.add(streamUrl)
+                                                updatedSet.add(normalizedStreamUrl)
                                                 prefs.edit().putStringSet("recent_rtmps", updatedSet.take(5).toSet()).apply()
                                                 
                                                 isLoading = false
@@ -699,6 +721,7 @@ class CreateMatchActivity: ComponentActivity() {
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable {
                                             streamUrl = stream.rtmpUrl
+                                            selectedYouTubeDestination = stream
                                             showYouTubeStreamsDialog = false
                                             Toast.makeText(
                                                 context,
@@ -745,7 +768,7 @@ class CreateMatchActivity: ComponentActivity() {
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                text = listOf(stream.protocol, stream.status)
+                                                text = listOfNotNull(stream.youtubeChannelTitle, stream.protocol, stream.status)
                                                     .filter { it.isNotBlank() }
                                                     .joinToString(" • "),
                                                 style = MaterialTheme.typography.bodySmall,
@@ -786,6 +809,10 @@ class CreateMatchActivity: ComponentActivity() {
                     put("rtmpUrl", stream.rtmpUrl)
                     put("protocol", stream.protocol)
                     put("status", stream.status)
+                    stream.youtubeChannelId?.let { put("youtubeChannelId", it) }
+                    stream.youtubeChannelTitle?.let { put("youtubeChannelTitle", it) }
+                    // Do not cache the event ID: reusable keys can point to a new
+                    // broadcast when this 24-hour fallback is used again.
                 }
             )
         }
@@ -831,7 +858,9 @@ class CreateMatchActivity: ComponentActivity() {
                             label = item.optString("label", ""),
                             rtmpUrl = rtmpUrl,
                             protocol = item.optString("protocol", ""),
-                            status = item.optString("status", "")
+                            status = item.optString("status", ""),
+                            youtubeChannelId = item.optionalYouTubeString("youtubeChannelId"),
+                            youtubeChannelTitle = item.optionalYouTubeString("youtubeChannelTitle")
                         )
                     )
                 }
@@ -864,9 +893,9 @@ class CreateMatchActivity: ComponentActivity() {
                 Toast.makeText(this, this.getString(R.string.create_match_error2), Toast.LENGTH_SHORT).show()
                 false
             }
-            !(streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtmps://")) -> {
-                // Questo controlla entrambi i protocolli
-                Toast.makeText(this, getString(R.string.create_match_error3), Toast.LENGTH_SHORT).show()
+            RtmpUrlValidator.validate(streamUrl) != RtmpUrlValidation.VALID -> {
+                val validation = RtmpUrlValidator.validate(streamUrl)
+                Toast.makeText(this, getString(validation.errorMessageRes()), Toast.LENGTH_LONG).show()
                 false
             }
             else -> true
@@ -876,4 +905,11 @@ class CreateMatchActivity: ComponentActivity() {
     private companion object {
         const val YOUTUBE_STREAM_CACHE_MAX_AGE_MS = 24L * 60L * 60L * 1000L
     }
+}
+
+private fun RtmpUrlValidation.errorMessageRes(): Int = when (this) {
+    RtmpUrlValidation.YOUTUBE_STREAM_KEY_MISSING -> R.string.create_match_error_youtube_key
+    RtmpUrlValidation.FACEBOOK_STREAM_KEY_MISSING -> R.string.create_match_error_facebook_key
+    RtmpUrlValidation.INVALID_URL -> R.string.create_match_error3
+    RtmpUrlValidation.VALID -> R.string.create_match_error3
 }

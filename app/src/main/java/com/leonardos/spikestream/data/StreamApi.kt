@@ -36,7 +36,10 @@ data class YouTubeStreamDestination(
     val label: String,
     val rtmpUrl: String,
     val protocol: String,
-    val status: String
+    val status: String,
+    val youtubeChannelId: String? = null,
+    val youtubeChannelTitle: String? = null,
+    val youtubeBroadcastId: String? = null
 ) {
     val displayName: String
         get() = label.ifBlank { title.ifBlank { "YouTube stream" } }
@@ -164,7 +167,8 @@ object StreamApi {
         token: String,
         teamAName: String,
         teamBName: String,
-        rtmpUrl: String
+        rtmpUrl: String,
+        youtubeDestination: YouTubeStreamDestination? = null
     ): CreateMatchResult = withContext(Dispatchers.IO) {
         try {
             val client = getHttpClient()
@@ -172,6 +176,7 @@ object StreamApi {
                 put("teamAName", teamAName)
                 put("teamBName", teamBName)
                 put("rtmpUrl", rtmpUrl)
+                putYouTubeDestination(youtubeDestination, rtmpUrl)
             }
 
             val mediaType = MediaType.get("application/json; charset=utf-8")
@@ -205,7 +210,11 @@ object StreamApi {
             val scope = "oauth2:https://www.googleapis.com/auth/youtube.readonly"
             val googleToken = GoogleAuthUtil.getToken(context, account.account!!, scope)
 
-            val client = getHttpClient()
+            // Stream pagination plus optional channel/event lookups share this request.
+            val client = getHttpClient().newBuilder()
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .callTimeout(40, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
             val jsonBody = JSONObject().apply {
                 put("accessToken", googleToken)
             }
@@ -278,7 +287,10 @@ object StreamApi {
             rtmpUrl = rtmpUrl,
             protocol = json.optString("protocol", "")
                 .ifBlank { rtmpUrl.substringBefore("://").uppercase() },
-            status = json.optString("status", "")
+            status = json.optString("status", ""),
+            youtubeChannelId = json.optionalYouTubeString("youtubeChannelId"),
+            youtubeChannelTitle = json.optionalYouTubeString("youtubeChannelTitle"),
+            youtubeBroadcastId = json.optionalYouTubeString("youtubeBroadcastId")
         )
     }
 

@@ -121,6 +121,7 @@ class TokenManager(private val context: Context) {
         try { sharedPrefs.getString("auth_token", null) } catch (e: Exception) { null }
     )
     val tokenFlow: Flow<String?> = _tokenFlow.asStateFlow()
+    val currentToken: String? get() = _tokenFlow.value?.takeIf { it.isNotBlank() }
 
     companion object {
         private val JWT_REGEX = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
@@ -155,7 +156,10 @@ data class StreamInfo(
     val teamA: String,
     val teamB: String,
     val matchId: String,
-    val rtmpUrl: String
+    val rtmpUrl: String,
+    val youtubeChannelId: String? = null,
+    val youtubeChannelTitle: String? = null,
+    val youtubeBroadcastId: String? = null
 ) {
     val title: String get() = "$teamA vs $teamB"
 }
@@ -168,9 +172,14 @@ class MainActivity : ComponentActivity() {
     private var isMobileAdsInitializeCalled = AtomicBoolean(false)
     private lateinit var consentInformation: ConsentInformation
     private lateinit var tokenManager: TokenManager
-    private var latestIntentData: Uri? = null
+    private var latestIntentData by mutableStateOf<Uri?>(null)
+    private var allowAppOpenAdForThisLaunch = true
     private lateinit var appUpdateManager: AppUpdateManager
     private val updateRequestCode = 123
+    private var updateGateResolved = false
+    private var startRequested = false
+    private var updateCheckInFlight = false
+    private var updateFlowLaunched = false
     lateinit var rewardedAd: RewardedAd
     var isRewardedAdLoaded = false
     private val refreshTrigger = mutableStateOf(0)
@@ -181,21 +190,35 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        tokenManager = TokenManager(applicationContext)
+        latestIntentData = intent?.data
         appUpdateManager = AppUpdateManagerFactory.create(this)
-
         checkForUpdates()
 
-        setContent {
-            MyApplicationTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    Box(
+        val hasStoredAuthentication = !tokenManager.currentToken.isNullOrBlank()
+        val isAuthenticationCallback =
+            !latestIntentData?.getQueryParameter("token").isNullOrBlank()
+
+        // An unauthenticated user must see Login immediately. Do not hold the
+        // authentication routing behind Remote Config, UMP or an App Open Ad.
+        allowAppOpenAdForThisLaunch = hasStoredAuthentication && !isAuthenticationCallback
+        if (!hasStoredAuthentication || isAuthenticationCallback) {
+            startApp()
+        }
+
+        if (!isAppStarted) {
+            setContent {
+                MyApplicationTheme {
+                    Surface(
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        color = MaterialTheme.colorScheme.background
                     ) {
-                        CircularProgressIndicator()
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
@@ -212,6 +235,12 @@ class MainActivity : ComponentActivity() {
 
     private fun startApp() {
         Log.d(TAG_APP_OPEN, "startApp() called | hasStartedApp=$isAppStarted")
+
+        if (!updateGateResolved) {
+            startRequested = true
+            Log.d(TAG_APP_OPEN, "startApp() waiting for mandatory update check")
+            return
+        }
 
         if (isAppStarted) {
             Log.d(TAG_APP_OPEN, "startApp() blocked (already started)")
@@ -260,7 +289,11 @@ class MainActivity : ComponentActivity() {
         val canShowAds = consentInformation.canRequestAds()
 
         // Gestione App Open Ad
-        if (RemoteConfigManager.isAppOpenEnabled() && canShowAds) {
+        if (
+            allowAppOpenAdForThisLaunch &&
+            RemoteConfigManager.isAppOpenEnabled() &&
+            canShowAds
+        ) {
             loadAppOpenAd()
         } else {
             startApp()
@@ -328,15 +361,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-            if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
-                appUpdateManager.startUpdateFlowForResult(
-                    appUpdateInfo,
-                    AppUpdateType.IMMEDIATE,
-                    this,
-                    updateRequestCode
-                )
-            }
+        if (::appUpdateManager.isInitialized && !updateFlowLaunched) {
+            checkForUpdates()
         }
         if (RemoteConfigManager.isCreateMatchEnabled()) {
             loadRewardedAd()
@@ -344,18 +370,83 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkForUpdates() {
-        val appUpdateInfoTask = appUpdateManager.appUpdateInfo
-        appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
-            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
-                appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
-            ) {
-                appUpdateManager.startUpdateFlowForResult(
-                    appUpdateInfo,
-                    AppUpdateType.IMMEDIATE,
-                    this,
-                    updateRequestCode
+        if (updateCheckInFlight || updateFlowLaunched) return
+        updateCheckInFlight = true
+
+        appUpdateManager.appUpdateInfo
+            .addOnSuccessListener { appUpdateInfo ->
+                updateCheckInFlight = false
+                when (appUpdateInfo.updateAvailability()) {
+                    UpdateAvailability.UPDATE_AVAILABLE -> {
+                        if (appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                            launchRequiredUpdate(appUpdateInfo)
+                        } else {
+                            openPlayStoreAndClose()
+                        }
+                    }
+
+                    UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS -> {
+                        launchRequiredUpdate(appUpdateInfo)
+                    }
+
+                    else -> resolveUpdateGate()
+                }
+            }
+            .addOnFailureListener {
+                // An offline Play Store check must not permanently lock users out.
+                updateCheckInFlight = false
+                resolveUpdateGate()
+            }
+    }
+
+    private fun launchRequiredUpdate(appUpdateInfo: com.google.android.play.core.appupdate.AppUpdateInfo) {
+        if (updateFlowLaunched) return
+        updateFlowLaunched = true
+        val launched = appUpdateManager.startUpdateFlowForResult(
+            appUpdateInfo,
+            AppUpdateType.IMMEDIATE,
+            this,
+            updateRequestCode
+        )
+        if (!launched) {
+            updateFlowLaunched = false
+            openPlayStoreAndClose()
+        }
+    }
+
+    private fun resolveUpdateGate() {
+        updateGateResolved = true
+        if (startRequested) startApp()
+    }
+
+    private fun openPlayStoreAndClose() {
+        val marketIntent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("market://details?id=$packageName")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { startActivity(marketIntent) }
+            .recoverCatching {
+                startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                    )
                 )
             }
+        finishAndRemoveTask()
+    }
+
+    @Deprecated("Kept for the Play Core immediate-update result API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != updateRequestCode) return
+
+        updateFlowLaunched = false
+        if (resultCode != Activity.RESULT_OK) {
+            // A required update cannot be dismissed while continuing to use the old version.
+            finishAndRemoveTask()
+        } else {
+            checkForUpdates()
         }
     }
 
@@ -380,12 +471,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startCompose() {
-
-        tokenManager = TokenManager(applicationContext)
-
-        // Salva il primo intent ricevuto all'avvio
-        latestIntentData = intent?.data
-
         setContent {
             MyApplicationTheme {
                 Surface(
@@ -393,7 +478,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 )
                 {
-                val tokenState = remember { mutableStateOf<String?>(null) }
+                val tokenState = remember { mutableStateOf(tokenManager.currentToken) }
                 val coroutineScope = rememberCoroutineScope()
                 val showRegister = remember { mutableStateOf(false) }
                 val context = LocalContext.current
@@ -479,8 +564,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // ✅ Aggiorna latestIntentData se arriva un nuovo deep link
-        latestIntentData = intent?.data
+        setIntent(intent)
+        // State-backed so an authentication callback is processed even when the
+        // existing MainActivity instance receives the deep link.
+        latestIntentData = intent.data
     }
 
     override fun onRestart() {
@@ -705,7 +792,10 @@ fun DashboardScreen(
                             teamA = json.getString("teamAName"),
                             teamB = json.getString("teamBName"),
                             matchId = json.getString("id"),
-                            rtmpUrl = json.getString("rtmpUrl")
+                            rtmpUrl = json.getString("rtmpUrl"),
+                            youtubeChannelId = json.optionalYouTubeString("youtubeChannelId"),
+                            youtubeChannelTitle = json.optionalYouTubeString("youtubeChannelTitle"),
+                            youtubeBroadcastId = json.optionalYouTubeString("youtubeBroadcastId")
                         )
                     }
                     streams.clear()
@@ -895,6 +985,31 @@ fun DashboardScreen(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
+                                        }
+                                        val channelUrl = youtubeChannelUrl(stream.youtubeChannelId)
+                                        if (channelUrl != null) {
+                                            stream.youtubeChannelTitle?.let { channelTitle ->
+                                                Text(
+                                                    text = "YouTube · $channelTitle",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            val watchUrl = youtubeWatchUrl(stream.youtubeChannelId, stream.youtubeBroadcastId)
+                                            TextButton(onClick = {
+                                                val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(watchUrl ?: channelUrl))
+                                                try {
+                                                    context.startActivity(viewIntent)
+                                                } catch (_: android.content.ActivityNotFoundException) {
+                                                    Toast.makeText(context, context.getString(R.string.youtube_open_failed), Toast.LENGTH_SHORT).show()
+                                                }
+                                            }) {
+                                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(stringResource(if (watchUrl != null) R.string.youtube_watch_match else R.string.youtube_open_channel))
+                                            }
                                         }
                                     }
 

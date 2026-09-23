@@ -9,6 +9,8 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.media.MediaCodec
+import android.view.SurfaceHolder
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
@@ -37,14 +39,16 @@ import com.leonardos.spikestream.ui.theme.MyApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
 import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import com.pedro.common.ConnectChecker
+import com.pedro.encoder.CodecErrorCallback
+import com.pedro.encoder.utils.CodecUtil
+import com.pedro.encoder.input.video.CameraCallbacks
+import com.pedro.encoder.input.video.CameraHelper
 import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.library.rtmp.RtmpCamera2
 import com.pedro.library.view.GlStreamInterface
 import com.pedro.library.view.OpenGlView
 import com.leonardos.spikestream.ui.components.DefaultOverlayStyle
-import com.leonardos.spikestream.data.GetGameResult
 import com.leonardos.spikestream.R
-import com.leonardos.spikestream.data.StreamApi.makeGetGameRequest
 import com.leonardos.spikestream.utils.getHttpClient
 import com.leonardos.spikestream.streaming.StreamBitrateMonitor
 import com.leonardos.spikestream.streaming.StreamBrightnessManager
@@ -88,7 +92,15 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
     private var streamTelemetry by mutableStateOf(StreamTelemetry())
     private var activeProfile by mutableStateOf<StreamProfile?>(null)
     private var activeCameraId: String = "0"
+    private var preparedCamera: RtmpCamera2? = null
+    private var preparedQualityMode: StreamQualityMode? = null
+    private var preparedIsPortrait: Boolean? = null
     private var usingOffscreenRenderer = false
+    private var cameraReleased = true
+    private var cameraGeneration = 0L
+    private var activityVisible = false
+    private var closing = false
+    private var lastQualityMode = StreamQualityMode.AUTO
     private var lastNotificationUpdateAtMs = 0L
     private var lastNotificationStatus: BroadcastStatus? = null
 
@@ -216,13 +228,27 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         // Camera and Microphone Permissions Launcher
         val launcher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
-        ) {
+        ) { result ->
             if (hasPermissions(ctx)) {
-                if (::rtmpCamera.isInitialized && !rtmpCamera.isOnPreview) {
-                    runCatching { rtmpCamera.startPreview(cameraId) }
-                        .onFailure {
-                            Log.e("Stream", "Avvio preview dopo i permessi non riuscito", it)
+                val mediaPermissionResult =
+                    result.containsKey(Manifest.permission.CAMERA) ||
+                        result.containsKey(Manifest.permission.RECORD_AUDIO)
+
+                // The first permission grant must follow the same preparation
+                // path as subsequent launches. Starting the camera directly
+                // would bypass the OpenGL score overlay and encoder profile.
+                if (mediaPermissionResult && ::openGlView.isInitialized) {
+                    openGlView.post {
+                        if (!isStreamingState &&
+                            !preparePreview(selectedQualityMode, isPortrait, cameraId)
+                        ) {
+                            Toast.makeText(
+                                ctx,
+                                "Configurazione camera/audio non supportata",
+                                Toast.LENGTH_LONG,
+                            ).show()
                         }
+                    }
                 }
             } else {
                 Toast.makeText(ctx, ctx.getString(R.string.permissions), Toast.LENGTH_SHORT).show()
@@ -254,21 +280,10 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         // Authenticates and connects WebSocket once the User token is loaded
         LaunchedEffect(Unit) {
             tokenManager.tokenFlow.collect { token ->
-                if (token != null) {
-                    // Pre-fetch initial points state
-                    when (val result = makeGetGameRequest(token, matchId)) {
-                        is GetGameResult.Success -> {
-                            currentTeam1Pts = result.team1Pts
-                            currentTeam2Pts = result.team2Pts
-                            currentTeam1Sets = result.team1Sets
-                            currentTeam2Sets = result.team2Sets
-                        }
-                        is GetGameResult.Error -> {
-                            Log.e("Stream", "Failed to load initial game state: ${result.message}")
-                        }
-                    }
-                    // Connect socket cleanly
+                if (token != null && matchId.isNotBlank()) {
                     socketManager.connect(token)
+                } else {
+                    socketManager.disconnect()
                 }
             }
         }
@@ -294,10 +309,27 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             key(isPortrait) {
                 AndroidView(
                     factory = { ctx ->
-                        openGlView = OpenGlView(ctx)
-                        rtmpCamera = RtmpCamera2(openGlView, this@StreamActivity)
+                        releaseCurrentCamera()
+                        val previewView = OpenGlView(ctx)
+                        openGlView = previewView
+                        createCamera(previewView)
+                        previewView.holder.addCallback(object : SurfaceHolder.Callback {
+                            override fun surfaceCreated(holder: SurfaceHolder) {
+                                if (openGlView === previewView) {
+                                    if (isStreamingState) restoreStreamPreview() else restoreIdlePreview()
+                                }
+                            }
+                            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+                            override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
+                        })
 
                         openGlView.post {
+                            // On the first launch the permission dialog is still
+                            // pending. Its callback will prepare the preview once
+                            // camera and microphone access have been granted.
+                            if (openGlView !== previewView || !activityVisible || closing ||
+                                !previewView.holder.surface.isValid || !hasPermissions(ctx)
+                            ) return@post
                             if (!preparePreview(
                                     qualityMode = selectedQualityMode,
                                     isPortrait = isPortrait,
@@ -315,7 +347,10 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
 
                         openGlView
                     },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    onRelease = { view ->
+                        if (::openGlView.isInitialized && openGlView === view) releaseCurrentCamera()
+                    },
                 )
             }
 
@@ -416,18 +451,15 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         isPortrait: Boolean,
         cameraId: String,
     ): Boolean {
-        if (!::rtmpCamera.isInitialized || isStreamingState) return false
+        if (!::rtmpCamera.isInitialized || isStreamingState || !activityVisible || closing) return false
+        if (!::openGlView.isInitialized || !openGlView.holder.surface.isValid || !hasPermissions(this)) return false
+        lastQualityMode = qualityMode
 
-        val preferredProfile = networkManager.selectProfile(qualityMode)
-        val preparedProfile = networkManager.prepareVideoCompat(
-            camera = rtmpCamera,
-            preferredProfile = preferredProfile,
-            isPortrait = isPortrait,
-        ) ?: return false
-
-        if (!rtmpCamera.prepareAudio(128 * 1024, 48000, true)) return false
-
-        activeProfile = preparedProfile
+        val preparedProfile = reusablePreparedProfile(qualityMode, isPortrait)
+            ?: prepareEncoders(qualityMode, isPortrait) ?: run {
+                releaseCurrentCamera()
+                return false
+            }
         overlayController.applyOverlay(
             rtmpCamera = rtmpCamera,
             width = preparedProfile.outputWidth,
@@ -438,12 +470,143 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             team1Sets = currentTeam1Sets,
             team2Sets = currentTeam2Sets,
         )
-        rtmpCamera.setFpsListener { fps -> bitrateMonitor.onFps(fps) }
 
         if (hasPermissions(this) && !rtmpCamera.isOnPreview) {
-            rtmpCamera.startPreview(cameraId)
+            if (runCatching { rtmpCamera.startPreview(cameraId) }.isFailure) {
+                releaseCurrentCamera()
+                return false
+            }
         }
         return true
+    }
+
+    /**
+     * Prepares camera and microphone once for both preview and broadcast.
+     * Recreating AudioRecord and MediaCodec when the operator taps LIVE is
+     * unnecessary and is less reliable on older Android 7/8 vendor codecs.
+     */
+    private fun prepareEncoders(
+        qualityMode: StreamQualityMode,
+        isPortrait: Boolean,
+    ): StreamProfile? {
+        if (cameraReleased || preparedCamera != null) createCamera(openGlView)
+        invalidatePreparedEncoders()
+
+        val preferredProfile = networkManager.selectProfile(qualityMode)
+        val preparedProfile = networkManager.prepareVideoCompat(
+            camera = rtmpCamera,
+            preferredProfile = preferredProfile,
+            isPortrait = isPortrait,
+        ) ?: return null
+
+        val audioPrepared = runCatching {
+            rtmpCamera.prepareAudio(128 * 1024, 48000, true)
+        }.getOrElse {
+            Log.e("Stream", "Preparazione microfono/AAC non riuscita", it)
+            false
+        }
+        if (!audioPrepared) return null
+
+        activeProfile = preparedProfile
+        preparedCamera = rtmpCamera
+        preparedQualityMode = qualityMode
+        preparedIsPortrait = isPortrait
+        return preparedProfile
+    }
+
+    private fun reusablePreparedProfile(
+        qualityMode: StreamQualityMode,
+        isPortrait: Boolean,
+    ): StreamProfile? = activeProfile?.takeIf {
+        !cameraReleased && preparedCamera === rtmpCamera &&
+            preparedQualityMode == qualityMode &&
+            preparedIsPortrait == isPortrait
+    }
+
+    private fun invalidatePreparedEncoders() {
+        preparedCamera = null
+        preparedQualityMode = null
+        preparedIsPortrait = null
+    }
+
+    private fun releaseCurrentCamera() {
+        if (!::rtmpCamera.isInitialized || cameraReleased) return
+        cameraReleased = true
+        cameraGeneration++ // Discard callbacks already queued by the previous instance.
+        invalidatePreparedEncoders()
+        overlayController.removeOverlay(rtmpCamera)
+        // Also releases prepared codecs when startStream failed or was never called.
+        runCatching { rtmpCamera.stopStream() }
+            .onFailure { Log.e("Stream", "Arresto encoder non riuscito", it) }
+        runCatching { rtmpCamera.stopPreview() }
+            .onFailure { Log.e("Stream", "Rilascio camera non riuscito", it) }
+        usingOffscreenRenderer = false
+    }
+
+    private fun dispatchCameraEvent(generation: Long, action: () -> Unit) {
+        // Always queue: never tear down a codec from inside its own callback.
+        mainExecutorCompat.post {
+            if (generation == cameraGeneration && !cameraReleased && !closing) action()
+        }
+    }
+
+    private val mainExecutorCompat = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun createCamera(view: OpenGlView) {
+        releaseCurrentCamera()
+        val generation = ++cameraGeneration
+        val checker = object : ConnectChecker {
+            override fun onConnectionStarted(url: String) = dispatchCameraEvent(generation) { this@StreamActivity.onConnectionStarted(url) }
+            override fun onConnectionSuccess() = dispatchCameraEvent(generation) { this@StreamActivity.onConnectionSuccess() }
+            override fun onConnectionFailed(reason: String) = dispatchCameraEvent(generation) { this@StreamActivity.onConnectionFailed(reason) }
+            override fun onNewBitrate(bitrate: Long) = dispatchCameraEvent(generation) { this@StreamActivity.onNewBitrate(bitrate) }
+            override fun onDisconnect() = dispatchCameraEvent(generation) { this@StreamActivity.onDisconnect() }
+            override fun onAuthError() = dispatchCameraEvent(generation) { this@StreamActivity.onAuthError() }
+            override fun onAuthSuccess() = dispatchCameraEvent(generation) { this@StreamActivity.onAuthSuccess() }
+        }
+        rtmpCamera = RtmpCamera2(view, checker)
+        cameraReleased = false
+        rtmpCamera.setFpsListener { fps ->
+            dispatchCameraEvent(generation) { bitrateMonitor.onFps(fps) }
+        }
+        fun mediaFailure(reason: String) = dispatchCameraEvent(generation) {
+            if (isStreamingState) bitrateMonitor.onMediaError(reason)
+            else {
+                releaseCurrentCamera()
+                Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            }
+        }
+        rtmpCamera.setEncoderErrorCallback(object : CodecErrorCallback {
+            override fun onCodecError(type: CodecUtil.CodecTypeError, e: MediaCodec.CodecException) {
+                Log.e("Stream", "Errore codec $type", e)
+                mediaFailure("Errore encoder $type")
+            }
+            override fun onEncodeError(type: CodecUtil.CodecTypeError, e: IllegalStateException): Boolean {
+                Log.e("Stream", "Codifica interrotta: $type", e)
+                mediaFailure("Codifica interrotta: $type")
+                return false
+            }
+        })
+        rtmpCamera.setCameraCallbacks(object : CameraCallbacks {
+            override fun onCameraChanged(facing: CameraHelper.Facing) = Unit
+            override fun onCameraOpened() = Unit
+            override fun onCameraError(error: String) = mediaFailure("Camera non disponibile")
+            override fun onCameraDisconnected() = mediaFailure("Camera disconnessa")
+        })
+    }
+
+    private fun restoreIdlePreview() {
+        if (!::openGlView.isInitialized || closing || !activityVisible) return
+        val view = openGlView
+        view.post {
+            if (openGlView !== view || closing || !activityVisible || isStreamingState ||
+                !view.holder.surface.isValid || !hasPermissions(this)
+            ) return@post
+            val portrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            if (!preparePreview(lastQualityMode, portrait, activeCameraId)) {
+                Log.w("Stream", "Preview non disponibile")
+            }
+        }
     }
 
     @Composable
@@ -651,6 +814,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         isPortrait: Boolean,
         qualityMode: StreamQualityMode,
     ) {
+        if (isStreamingState || closing || !activityVisible) return
         if (!::rtmpCamera.isInitialized || !hasPermissions(this)) {
             Toast.makeText(this, getString(R.string.permissions), Toast.LENGTH_SHORT).show()
             return
@@ -667,16 +831,11 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         }
 
         overlayController.removeOverlay(rtmpCamera)
-        val preferredProfile = networkManager.selectProfile(qualityMode, snapshot)
-        val preparedProfile = networkManager.prepareVideoCompat(
-            camera = rtmpCamera,
-            preferredProfile = preferredProfile,
-            isPortrait = isPortrait,
-        )
-        val audioPrepared = preparedProfile != null &&
-            rtmpCamera.prepareAudio(128 * 1024, 48000, true)
+        val preparedProfile = reusablePreparedProfile(qualityMode, isPortrait)
+            ?: prepareEncoders(qualityMode, isPortrait)
 
-        if (preparedProfile == null || !audioPrepared) {
+        if (preparedProfile == null) {
+            releaseCurrentCamera()
             Toast.makeText(
                 this,
                 "Il dispositivo non supporta una configurazione streaming compatibile",
@@ -699,33 +858,28 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             team2Sets = currentTeam2Sets,
         )
 
-        bitrateMonitor.beginSession(preparedProfile)
-        StreamForegroundService.start(
-            this,
-            "Spike Stream LIVE",
-            "Connessione alla piattaforma • ${preparedProfile.name}",
-        )
-
         runCatching {
+            bitrateMonitor.beginSession(preparedProfile)
+            StreamForegroundService.start(
+                this,
+                "Spike Stream LIVE",
+                "Connessione alla piattaforma • ${preparedProfile.name}",
+            )
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
+            isStreamingState = true
             rtmpCamera.startStream(streamUrl)
         }.onSuccess {
-            isStreamingState = true
-            usingOffscreenRenderer = false
-            brightnessManager.setDimmed(true)
+            if (isStreamingState) brightnessManager.setDimmed(true)
         }.onFailure {
             Log.e("Stream", "Avvio RTMP non riuscito", it)
-            bitrateMonitor.endSession()
-            StreamForegroundService.stop(this)
-            brightnessManager.restore()
+            stopLiveSession(restorePreview = true)
             Toast.makeText(this, "Impossibile avviare la diretta", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun stopLiveSession(restorePreview: Boolean) {
         bitrateMonitor.endSession()
-        if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
-            runCatching { rtmpCamera.stopStream() }
-        }
+        releaseCurrentCamera()
         StreamForegroundService.stop(this)
         isStreamingState = false
         usingOffscreenRenderer = false
@@ -734,32 +888,20 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         brightnessManager.restore()
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
 
-        if (restorePreview &&
-            ::rtmpCamera.isInitialized &&
-            !rtmpCamera.isOnPreview &&
-            hasPermissions(this)
-        ) {
-            runCatching { rtmpCamera.startPreview(activeCameraId) }
-        }
+        if (restorePreview) restoreIdlePreview()
     }
 
     private fun handleFatalStreamError(reason: String) {
         runOnUiThread {
-            if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
-                runCatching { rtmpCamera.stopStream() }
-            }
+            if (closing) return@runOnUiThread
+            releaseCurrentCamera()
             StreamForegroundService.stop(this)
             isStreamingState = false
             usingOffscreenRenderer = false
             brightnessManager.restore()
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
             Toast.makeText(this, "Diretta interrotta: $reason", Toast.LENGTH_LONG).show()
-            if (::rtmpCamera.isInitialized &&
-                !rtmpCamera.isOnPreview &&
-                hasPermissions(this)
-            ) {
-                runCatching { rtmpCamera.startPreview(activeCameraId) }
-            }
+            restoreIdlePreview()
         }
     }
 
@@ -825,6 +967,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             usingOffscreenRenderer = true
         }.onFailure {
             Log.e("Stream", "Passaggio al renderer OpenGL offscreen non riuscito", it)
+            bitrateMonitor.onMediaError("Impossibile mantenere il video in background")
         }
     }
 
@@ -836,45 +979,43 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         ) return
 
         openGlView.post {
-            if (!rtmpCamera.isStreaming || !usingOffscreenRenderer) return@post
+            if (closing || !activityVisible || cameraReleased ||
+                !openGlView.holder.surface.isValid ||
+                !rtmpCamera.isStreaming || !usingOffscreenRenderer
+            ) return@post
             runCatching {
                 rtmpCamera.replaceView(openGlView)
                 applyOverlayToCurrentRenderer()
                 usingOffscreenRenderer = false
             }.onFailure {
                 Log.e("Stream", "Ripristino preview OpenGL non riuscito", it)
+                bitrateMonitor.onMediaError("Impossibile ripristinare il video")
             }
         }
     }
 
     override fun onStart() {
         super.onStart()
+        activityVisible = true
         if (isStreamingState) {
             restoreStreamPreview()
-        } else if (::rtmpCamera.isInitialized &&
-            !isStreamingState &&
-            !rtmpCamera.isOnPreview &&
-            hasPermissions(this)
-        ) {
-            runCatching { rtmpCamera.startPreview(activeCameraId) }
-        }
+        } else restoreIdlePreview()
     }
 
     override fun onStop() {
+        activityVisible = false
         if (isStreamingState) {
             moveStreamToOffscreenRenderer()
-        } else if (::rtmpCamera.isInitialized && rtmpCamera.isOnPreview) {
-            runCatching { rtmpCamera.stopPreview() }
-        }
+        } else releaseCurrentCamera()
         super.onStop()
     }
 
     override fun onDestroy() {
+        closing = true
+        activityVisible = false
         if (isStreamingState) {
             stopLiveSession(restorePreview = false)
-        } else if (::rtmpCamera.isInitialized && rtmpCamera.isOnPreview) {
-            runCatching { rtmpCamera.stopPreview() }
-        }
+        } else releaseCurrentCamera()
         bitrateMonitor.stopObserving()
         socketManager.disconnect()
         brightnessManager.restore()

@@ -60,11 +60,17 @@
     <string name="create_match">Créer le match</string>
     <string name="create_match_error1">Entrez le nom de l\'équipe à domicile</string>
     <string name="create_match_error2">Entrez le nom de l\'équipe à l\'extérieur</string>
-    <string name="create_match_error3">L\'URL doit commencer par rtmp://</string>
+    <string name="create_match_error3">Saisissez une URL RTMP ou RTMPS complète.</string>
+    <string name="create_match_error_youtube_key">L’URL YouTube doit inclure la clé de stream après /live2/.</string>
+    <string name="create_match_error_facebook_key">L’URL Facebook doit inclure la clé de stream après /rtmp/.</string>
 
     <!-- Options -->
     <string name="copy_link">Lien copié dans le presse-papiers !</string>
     <string name="generate_link">Générer un lien d\'invitation</string>
+    <string name="scorer_qr_title">Code QR du marqueur</string>
+    <string name="scorer_qr_scan">Scannez ce code QR avec le téléphone du marqueur pour ouvrir les commandes du score.</string>
+    <string name="share_link">Partager le lien</string>
+    <string name="share_link_chooser">Partager le lien du marqueur</string>
     <string name="score_editing_title_info">Comment modifier le score ?</string>
     <string name="score_editing_full_info"><![CDATA[
     Pour modifier le score pendant le live, vous devez générer un <b>lien</b> avant le match.<br/><br/>
@@ -236,4 +242,7 @@
     <string name="tour_options_step4_title">Aperçu du LIVE !</string>
     <string name="tour_options_step4_body">Tout est prêt ! Appuyez sur ce bouton pour voir l\'aperçu de la caméra avec le score. \n💡 N\'oubliez pas de configurer correctement le direct sur votre plateforme (ex: titre sur YouTube) avant de lancer le flux définitif depuis l\'écran suivant !</string>
     <string name="settings_replay_tour">Revoir les tutoriels</string>
+    <string name="youtube_watch_match">Voir le match sur YouTube</string>
+    <string name="youtube_open_channel">Ouvrir la chaîne YouTube</string>
+    <string name="youtube_open_failed">Aucune application disponible pour ouvrir YouTube.</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.leonardos.spikestream.streaming
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,13 +10,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.leonardos.spikestream.R
-import com.leonardos.spikestream.activities.MainActivity
+import com.leonardos.spikestream.activities.StreamActivity
 
 class StreamForegroundService : Service() {
 
@@ -27,11 +30,13 @@ class StreamForegroundService : Service() {
     private var isForegroundRunning = false
     private var currentTitle = DEFAULT_TITLE
     private var currentText = DEFAULT_TEXT
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         createNotificationChannel()
     }
 
@@ -54,15 +59,28 @@ class StreamForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        if (activeInstance === this) activeInstance = null
         stopInternal()
         super.onDestroy()
+    }
+
+    private fun updateFromClient(title: String, text: String) {
+        mainHandler.post {
+            if (!isForegroundRunning) return@post
+            currentTitle = title
+            currentText = text
+            notificationManager?.notify(
+                NOTIFICATION_ID,
+                buildNotification(currentTitle, currentText),
+            )
+        }
     }
 
     private fun startOrUpdateForeground() {
         acquireWakeLock()
 
         val notification = buildNotification(currentTitle, currentText)
-        val foregroundType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val foregroundType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         } else {
             0
@@ -80,25 +98,29 @@ class StreamForegroundService : Service() {
         isForegroundRunning = false
         releaseWakeLock()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
+        // STOP_FOREGROUND_REMOVE is available from API 24 (the app minSdk).
+        stopForeground(STOP_FOREGROUND_REMOVE)
 
         notificationManager?.cancel(NOTIFICATION_ID)
     }
 
     private fun buildNotification(title: String, text: String): Notification {
-        val openIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val openIntent = Intent(this, StreamActivity::class.java).apply {
+            // Bring the existing streaming Activity to the foreground. CLEAR_TOP
+            // must not be used here: MainActivity is below StreamActivity and
+            // clearing back to it destroys the encoder owner and ends the live.
+            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        val contentIntent = PendingIntent.getActivity(this, 0, openIntent, pendingFlags)
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            NOTIFICATION_ID,
+            openIntent,
+            pendingFlags,
+        )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -127,6 +149,7 @@ class StreamForegroundService : Service() {
         notificationManager?.createNotificationChannel(channel)
     }
 
+    @SuppressLint("WakelockTimeout")
     private fun acquireWakeLock() {
         if (wakeLock?.isHeld == true) return
 
@@ -147,6 +170,9 @@ class StreamForegroundService : Service() {
     }
 
     companion object {
+        @Volatile
+        private var activeInstance: StreamForegroundService? = null
+
         private const val CHANNEL_ID = "spikestream_live_stream"
         private const val CHANNEL_NAME = "Live stream"
         private const val CHANNEL_DESCRIPTION = "Keeps Spike Stream active while broadcasting."
@@ -165,8 +191,11 @@ class StreamForegroundService : Service() {
             enqueue(context, ACTION_START, title, text)
         }
 
-        fun update(context: Context, title: String, text: String) {
-            enqueue(context, ACTION_UPDATE, title, text)
+        fun update(@Suppress("UNUSED_PARAMETER") context: Context, title: String, text: String) {
+            // The service is already foreground. Starting it again from a
+            // background Activity is restricted on Android 12+ and unnecessary.
+            // A process-local update is also compatible with Android 7.
+            activeInstance?.updateFromClient(title, text)
         }
 
         fun stop(context: Context) {
