@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_managed_title">No configured key? Let SpikeStream prepare the event</string>
+    <string name="youtube_managed_intro">Configure a destination once and reuse it for your matches.</string>
+    <string name="youtube_managed_description">SpikeStream creates or reuses its reserved key. When you tap Start streaming, it automatically prepares a public event for this match. Google authorization may be required.</string>
+    <string name="youtube_managed_ready">Event prepared by SpikeStream on Start</string>
+    <string name="youtube_advanced">Advanced options</string>
+    <string name="youtube_studio_title">Use a configured destination</string>
+    <string name="youtube_studio_description">Prepare the live event and set its visibility to Public in YouTube Studio. Then select the key in SpikeStream and reuse it to stream your matches.</string>
+    <string name="youtube_managed_controls_hint">Stop streaming also ends the YouTube event after confirmation. A connection loss does not end it.</string>
+    <string name="youtube_pause_video">Stop streaming</string>
+    <string name="youtube_finish">End YouTube event</string>
+    <string name="youtube_finish_confirm">End this YouTube event permanently? It cannot be reopened. Stop streaming on any other device first. To stream another match, create a new match.</string>
+    <string name="youtube_close_pending">Closure is not confirmed. Retry ending it. If the event never started, check it in YouTube Studio.</string>
+    <string name="youtube_retry_close">Retry closing</string>
+    <string name="youtube_managed_closed">Broadcast ended. Create a new match to stream another game.</string>
+    <string name="youtube_watch_link">Open viewer link</string>
+    <string name="youtube_recommended">Recommended</string>
+    <string name="youtube_select_key">Select key</string>
+    <string name="youtube_studio_guide_title">How to configure YouTube Studio</string>
+    <string name="youtube_studio_guide">1. Open YouTube Studio and enable live streaming on your channel.\n2. Prepare a live event, choose a reusable stream key, set Public visibility and specify whether the audience is made for kids.\n3. Select that key in SpikeStream.\n4. Before each match, check the destination event and its visibility in Studio. Test how your channel handles subsequent streams: the initial setup does not guarantee they will all be public.\n\nSpikeStream sends audio and video only. It does not create events or change visibility in this mode. End the YouTube event in Studio.</string>
+    <string name="youtube_configure_event">Configure event creation</string>
+    <string name="youtube_studio_summary">Event managed in YouTube Studio</string>
+    <string name="youtube_manage_destination">Manage destination</string>
+    <string name="youtube_close_in_details">Closing is not confirmed. Open match details to retry.</string>
+    <string name="youtube_preparing">Preparing the YouTube event…</string>
+    <string name="youtube_event_details_hint">For events prepared by SpikeStream, Stop streaming also ends the YouTube event after confirmation. If closure fails, retry here or in the streaming screen. Deleting the match does not delete YouTube videos.</string>
+    <string name="youtube_studio_closure">Event managed in YouTube Studio. End it in Studio; stopping streaming only stops audio and video. Deleting the match does not delete YouTube videos.</string>
+    <string name="youtube_managed_stop_hint">Stop streaming also ends this YouTube event.</string>
+    <string name="youtube_closing">Ending the YouTube event…</string>
+    <string name="youtube_stop_confirm">Stop the video and end this YouTube event permanently? The event cannot be reopened.</string>
+    <string name="youtube_stop_confirm_action">Stop and end event</string>
+    <string name="youtube_reserved_key_explanation">The SpikeStream key is reserved for automatic event management and does not appear among Studio keys. Using it, SpikeStream prepares a public event for each match you start streaming.</string>
+    <string name="youtube_preconfigured_keys_hint">Only your keys configured in YouTube Studio are listed here. The key reserved for SpikeStream is excluded. Check the event visibility in Studio before streaming.</string>
+    <string name="youtube_no_preconfigured_keys">No preconfigured keys are available. Configure a key in YouTube Studio, or let SpikeStream prepare the event with its reserved key.</string>
+    <string name="youtube_verify_key_again">Select this saved destination again through YouTube to verify whether it is preconfigured or reserved for SpikeStream. Existing matches are unchanged.</string>
+    <string name="youtube_key_needs_verification">Saved destination — verify key</string>
+</resources>

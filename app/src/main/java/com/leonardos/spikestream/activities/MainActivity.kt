@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -124,15 +125,50 @@ class TokenManager(private val context: Context) {
     val currentToken: String? get() = _tokenFlow.value?.takeIf { it.isNotBlank() }
 
     companion object {
+        private val AUTH_LOCK = Any()
         private val JWT_REGEX = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
         fun isValidJwt(token: String): Boolean = JWT_REGEX.matches(token)
+    }
+
+    fun beginGoogleLogin(): String = synchronized(AUTH_LOCK) {
+        val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+        val state = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
+        check(sharedPrefs.edit().putString("pending_google_state", state).putLong("pending_google_started", System.currentTimeMillis()).commit())
+        state
+    }
+    fun cancelGoogleLogin() = synchronized(AUTH_LOCK) {
+        sharedPrefs.edit().remove("pending_google_state").remove("pending_google_started").apply()
+    }
+    suspend fun acceptGoogleCallback(raw: String): Boolean {
+        val candidate = AppAuthCallback.token(raw) ?: return false
+        val state = runCatching {
+            org.json.JSONObject(String(android.util.Base64.decode(candidate.split('.')[1], android.util.Base64.URL_SAFE), Charsets.UTF_8)).optString("appLoginState")
+        }.getOrNull() ?: return false
+        fun pendingMatches() = AppAuthCallback.matches(sharedPrefs.getString("pending_google_state", null), state,
+            sharedPrefs.getLong("pending_google_started", 0), System.currentTimeMillis())
+        if (!synchronized(AUTH_LOCK) { pendingMatches() }) return false
+        // The backend verifies the signature, expiry, account and access-token type.
+        val verified = AccountAccessApi.refresh(candidate) ?: return false
+        if (!isValidJwt(verified)) return false
+        return withContext(Dispatchers.IO) {
+            synchronized(AUTH_LOCK) {
+                if (!pendingMatches()) false else {
+                    val saved = sharedPrefs.edit().putString("auth_token", verified)
+                        .remove("pending_google_state").remove("pending_google_started").commit()
+                    if (saved) _tokenFlow.value = verified
+                    saved
+                }
+            }
+        }
     }
 
     suspend fun saveToken(token: String) {
         withContext(Dispatchers.IO) {
             try {
-                sharedPrefs.edit().putString("auth_token", token).apply()
-                _tokenFlow.value = token
+                synchronized(AUTH_LOCK) {
+                    sharedPrefs.edit().putString("auth_token", token).remove("pending_google_state").remove("pending_google_started").apply()
+                    _tokenFlow.value = token
+                }
             } catch (e: Exception) {
                 android.util.Log.e("TokenManager", "Impossibile salvare il token")
             }
@@ -142,8 +178,10 @@ class TokenManager(private val context: Context) {
     suspend fun clearToken() {
         withContext(Dispatchers.IO) {
             try {
-                sharedPrefs.edit().remove("auth_token").apply()
-                _tokenFlow.value = null
+                synchronized(AUTH_LOCK) {
+                    sharedPrefs.edit().remove("auth_token").remove("pending_google_state").remove("pending_google_started").apply()
+                    _tokenFlow.value = null
+                }
             } catch (e: Exception) {
                 android.util.Log.e("TokenManager", "Impossibile cancellare il token")
             }
@@ -159,13 +197,14 @@ data class StreamInfo(
     val rtmpUrl: String,
     val youtubeChannelId: String? = null,
     val youtubeChannelTitle: String? = null,
-    val youtubeBroadcastId: String? = null
+    val youtubeBroadcastId: String? = null,
+    val youtubeManaged: Boolean = false
 ) {
     val title: String get() = "$teamA vs $teamB"
 }
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AnimatedAppActivity() {
 
     private var isAppStarted = false
     private var hasAdShown = false
@@ -175,7 +214,19 @@ class MainActivity : ComponentActivity() {
     private var latestIntentData by mutableStateOf<Uri?>(null)
     private var allowAppOpenAdForThisLaunch = true
     private lateinit var appUpdateManager: AppUpdateManager
-    private val updateRequestCode = 123
+    private var updateBlocked by mutableStateOf(false)
+    private var updateBusy by mutableStateOf(false)
+    private var updateStatus by mutableStateOf("")
+    private var startupContinued = false
+    private var configLoaded = false
+    private val updateLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        updateFlowLaunched = false
+        updateBusy = false
+        if (result.resultCode != Activity.RESULT_OK) showUpdateFailure()
+        else updateStatus = updateText("Riavvia l’app dopo l’aggiornamento.", "Restart the app after updating.")
+    }
     private var updateGateResolved = false
     private var startRequested = false
     private var updateCheckInFlight = false
@@ -191,9 +242,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         tokenManager = TokenManager(applicationContext)
-        latestIntentData = intent?.data
+        latestIntentData = intent?.takeIf { it.action == Intent.ACTION_VIEW && AppAuthCallback.token(it.dataString) != null }?.data
         appUpdateManager = AppUpdateManagerFactory.create(this)
-        checkForUpdates()
 
         val hasStoredAuthentication = !tokenManager.currentToken.isNullOrBlank()
         val isAuthenticationCallback =
@@ -208,7 +258,7 @@ class MainActivity : ComponentActivity() {
 
         if (!isAppStarted) {
             setContent {
-                MyApplicationTheme {
+                RefinedApplicationTheme {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
@@ -225,10 +275,9 @@ class MainActivity : ComponentActivity() {
         }
 
         RemoteConfigManager.init {
-            if (RemoteConfigManager.isAdsEnabled()) {
-                initializeConsentFlow()
-            } else {
-                startApp()
+            if (!isDestroyed && !isFinishing) {
+                configLoaded = true
+                evaluateUpdatePolicy()
             }
         }
     }
@@ -361,27 +410,112 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::appUpdateManager.isInitialized && !updateFlowLaunched) {
-            checkForUpdates()
+        if (
+            ::appUpdateManager.isInitialized &&
+            configLoaded &&
+            !updateFlowLaunched
+        ) {
+            evaluateUpdatePolicy()
         }
-        if (RemoteConfigManager.isCreateMatchEnabled()) {
+        if (updateGateResolved && RemoteConfigManager.isCreateMatchEnabled()) {
             loadRewardedAd()
+        }
+    }
+
+    private fun updateText(it: String, en: String): String =
+        if (resources.configuration.locales[0].language == "it") it else en
+
+    private fun evaluateUpdatePolicy() {
+        if (isDestroyed || isFinishing) return
+        if (!com.leonardos.spikestream.utils.UpdatePolicy.requiresUpdate(BuildConfig.VERSION_CODE.toLong(), RemoteConfigManager.minimumSupportedVersionCode())) {
+            val wasBlocked = updateBlocked
+            updateBlocked = false
+            resolveUpdateGate()
+            if (wasBlocked && isAppStarted) startCompose()
+            if (!startupContinued) {
+                startupContinued = true
+                if (RemoteConfigManager.isAdsEnabled()) initializeConsentFlow() else startApp()
+            }
+            return
+        }
+        updateGateResolved = false
+        if (updateBlocked) return
+        updateBlocked = true
+        setContent {
+            RefinedApplicationTheme {
+                Surface(Modifier.fillMaxSize()) {
+                    Column(
+                        Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(updateText("Aggiornamento necessario", "Update required"),
+                            style = MaterialTheme.typography.headlineSmall)
+                        Spacer(Modifier.height(16.dp))
+                        Text(updateText(
+                            "Per continuare a usare SpikeStream, aggiorna l’app da Google Play.",
+                            "To continue using SpikeStream, update the app from Google Play."
+                        ), textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        Text(updateStatus, textAlign = TextAlign.Center)
+                        if (updateBusy) CircularProgressIndicator()
+                        Button(onClick = { checkForUpdates() }, enabled = !updateBusy) {
+                            Text(updateText("Aggiorna", "Update"))
+                        }
+                        TextButton(onClick = {
+                            updateBusy = true
+                            RemoteConfigManager.refresh {
+                                if (!isDestroyed && !isFinishing) {
+                                    updateBusy = false
+                                    updateStatus = updateText("Se necessario, controlla la connessione e riprova tra poco.",
+                                        "If needed, check your connection and try again shortly.")
+                                    evaluateUpdatePolicy()
+                                }
+                            }
+                        }, enabled = !updateBusy) { Text(updateText("Riprova controllo", "Check again")) }
+                        TextButton(onClick = { openPlayStore() }, enabled = !updateBusy) {
+                            Text(updateText("Apri Google Play", "Open Google Play"))
+                        }
+                    }
+                }
+            }
         }
     }
 
     private fun checkForUpdates() {
         if (updateCheckInFlight || updateFlowLaunched) return
+
+        val minimumSupportedVersion = RemoteConfigManager.minimumSupportedVersionCode()
+        if (BuildConfig.VERSION_CODE.toLong() >= minimumSupportedVersion) {
+            resolveUpdateGate()
+            return
+        }
+
         updateCheckInFlight = true
+        updateBusy = true
+        updateStatus = ""
+        val request = ++updateRequestGeneration
+        lifecycleScope.launch {
+            delay(10000)
+            if (request == updateRequestGeneration && !updateFlowLaunched) {
+                updateRequestGeneration++
+                updateCheckInFlight = false
+                showUpdateFailure()
+            }
+        }
 
         appUpdateManager.appUpdateInfo
             .addOnSuccessListener { appUpdateInfo ->
+                if (isDestroyed || isFinishing || request != updateRequestGeneration) return@addOnSuccessListener
+                updateRequestGeneration++
                 updateCheckInFlight = false
                 when (appUpdateInfo.updateAvailability()) {
                     UpdateAvailability.UPDATE_AVAILABLE -> {
                         if (appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
                             launchRequiredUpdate(appUpdateInfo)
                         } else {
-                            openPlayStoreAndClose()
+                            showUpdateFailure()
                         }
                     }
 
@@ -389,28 +523,34 @@ class MainActivity : ComponentActivity() {
                         launchRequiredUpdate(appUpdateInfo)
                     }
 
-                    else -> resolveUpdateGate()
+                    // Remote Config has already marked this build unsupported.
+                    // If Play has not propagated the replacement yet, do not
+                    // let the obsolete build enter the app.
+                    else -> showUpdateFailure()
                 }
             }
             .addOnFailureListener {
-                // An offline Play Store check must not permanently lock users out.
+                if (isDestroyed || isFinishing || request != updateRequestGeneration) return@addOnFailureListener
+                updateRequestGeneration++
                 updateCheckInFlight = false
-                resolveUpdateGate()
+                // Remote Config says this build is unsupported. If Play cannot
+                // start its update flow, keep the old build out of the app and
+                // direct the user to the store instead.
+                showUpdateFailure()
             }
     }
 
     private fun launchRequiredUpdate(appUpdateInfo: com.google.android.play.core.appupdate.AppUpdateInfo) {
         if (updateFlowLaunched) return
         updateFlowLaunched = true
-        val launched = appUpdateManager.startUpdateFlowForResult(
+        val launched = runCatching { appUpdateManager.startUpdateFlowForResult(
             appUpdateInfo,
-            AppUpdateType.IMMEDIATE,
-            this,
-            updateRequestCode
-        )
+            updateLauncher,
+            com.google.android.play.core.appupdate.AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()
+        ) }.getOrDefault(false)
         if (!launched) {
             updateFlowLaunched = false
-            openPlayStoreAndClose()
+            showUpdateFailure()
         }
     }
 
@@ -419,37 +559,24 @@ class MainActivity : ComponentActivity() {
         if (startRequested) startApp()
     }
 
-    private fun openPlayStoreAndClose() {
-        val marketIntent = Intent(
-            Intent.ACTION_VIEW,
-            Uri.parse("market://details?id=$packageName")
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { startActivity(marketIntent) }
-            .recoverCatching {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
-                    )
-                )
-            }
-        finishAndRemoveTask()
+    private var updateRequestGeneration = 0
+
+    private fun showUpdateFailure() {
+        updateBusy = false
+        updateStatus = updateText(
+            "Aggiornamento non disponibile o non completato. Controlla la connessione, riprova o apri Google Play.",
+            "Update unavailable or not completed. Check your connection, try again or open Google Play."
+        )
     }
 
-    @Deprecated("Kept for the Play Core immediate-update result API")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != updateRequestCode) return
-
-        updateFlowLaunched = false
-        if (resultCode != Activity.RESULT_OK) {
-            // A required update cannot be dismissed while continuing to use the old version.
-            finishAndRemoveTask()
-        } else {
-            checkForUpdates()
-        }
+    private fun openPlayStore() {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")))
+        }.recoverCatching {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName")))
+        }.onFailure { showUpdateFailure() }
     }
-
 
     private fun loadRewardedAd() {
         val adRequest = AdRequest.Builder().build()
@@ -472,7 +599,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startCompose() {
         setContent {
-            MyApplicationTheme {
+            RefinedApplicationTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -489,73 +616,78 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // ✅ Deep-link token: validate JWT format before saving
+                // Consume only callbacks bound to a login started by this app.
                 LaunchedEffect(latestIntentData) {
-                    val jwt = latestIntentData?.getQueryParameter("token")
-                    if (!jwt.isNullOrBlank()) {
-                        if (TokenManager.isValidJwt(jwt)) {
-                            coroutineScope.launch {
-                                tokenManager.saveToken(jwt)
-                                tokenState.value = jwt
-                            }
-                        } else {
-                            Log.w("Auth", "Deep-link token failed JWT format validation — ignoring")
-                        }
-                        latestIntentData = null // always clear after processing
+                    val callback = latestIntentData ?: return@LaunchedEffect
+                    val accepted = try { tokenManager.acceptGoogleCallback(callback.toString()) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { false }
+                    if (latestIntentData == callback) {
+                        latestIntentData = null
+                        this@MainActivity.intent?.data = null
                     }
+                    if (accepted) tokenState.value = tokenManager.currentToken
+                    else Toast.makeText(context, R.string.auth_callback_rejected, Toast.LENGTH_LONG).show()
                 }
 
-                if (tokenState.value == null) {
-                    if (showRegister.value) {
-                        RegisterScreen(
-                            onRegisterSuccess = { result ->
-                                showRegister.value = false
-                                Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                AnimatedContent(
+                    targetState = tokenState.value,
+                    transitionSpec = {
+                        (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 18 }) togetherWith
+                            (fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it / 24 })
+                    },
+                    label = "main_screen_transition"
+                ) { activeToken ->
+                    if (activeToken == null) {
+                        AnimatedContent(
+                            targetState = showRegister.value,
+                            transitionSpec = {
+                                (fadeIn(tween(200)) + slideInHorizontally(tween(220)) { if (targetState) it / 10 else -it / 10 }) togetherWith
+                                    (fadeOut(tween(140)) + slideOutHorizontally(tween(180)) { if (targetState) -it / 12 else it / 12 })
                             },
-                            onBackToLogin = { showRegister.value = false }
-                        )
+                            label = "auth_screen_transition"
+                        ) { showRegistration ->
+                            if (showRegistration) {
+                                RegisterScreen(
+                                    onRegisterSuccess = { result ->
+                                        showRegister.value = false
+                                        Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                    },
+                                    onBackToLogin = { showRegister.value = false }
+                                )
+                            } else {
+                                LoginScreen(
+                                    onLoginSuccess = { newToken ->
+                                        coroutineScope.launch {
+                                            tokenManager.saveToken(newToken)
+                                            tokenState.value = newToken
+                                        }
+                                    },
+                                    onRegisterClick = { showRegister.value = true },
+                                    onGoogleLoginClick = {
+                                        launchGoogleLogin(this@MainActivity)
+                                    },
+                                    onForgotPasswordClick = {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${Constants.BASE_URL}/auth/reset-password")))
+                                    }
+                                )
+                            }
+                        }
                     } else {
-                        LoginScreen(
-                            onLoginSuccess = { newToken ->
-                                coroutineScope.launch {
-                                    tokenManager.saveToken(newToken)
-                                    tokenState.value = newToken
+                        DashboardScreen(
+                            token = activeToken,
+                            refreshTrigger = refreshTrigger.value,
+                            onCreateStreamClick = {
+                                startActivity(Intent(this@MainActivity, CreateMatchActivity::class.java))
+                            },
+                            onTokenExpired = {
+                                lifecycleScope.launch {
+                                    tokenManager.clearToken()
+                                    tokenState.value = null
                                 }
-                            },
-                            onRegisterClick = {
-                                showRegister.value = true
-                            },
-                            onGoogleLoginClick = {
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("${Constants.BASE_URL}/auth/google")
-                                )
-                                startActivity(intent)
-                            },
-                            onForgotPasswordClick = {
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("${Constants.BASE_URL}/auth/reset-password")
-                                )
-                                startActivity(intent)
                             }
                         )
                     }
-                } else {
-                    DashboardScreen(
-                        token = tokenState.value!!,
-                        refreshTrigger = refreshTrigger.value,
-                        onCreateStreamClick = {
-                            val intent = Intent(this@MainActivity, CreateMatchActivity::class.java)
-                            startActivity(intent)
-                        },
-                        onTokenExpired = {
-                            lifecycleScope.launch {
-                                tokenManager.clearToken()
-                                tokenState.value = null
-                            }
-                        }
-                    )
                 }
             }
             }
@@ -567,7 +699,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         // State-backed so an authentication callback is processed even when the
         // existing MainActivity instance receives the deep link.
-        latestIntentData = intent.data
+        latestIntentData = intent.takeIf { it.action == Intent.ACTION_VIEW && AppAuthCallback.token(it.dataString) != null }?.data
     }
 
     override fun onRestart() {
@@ -605,17 +737,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Surface(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .shadow(12.dp, CircleShape, spotColor = MaterialTheme.colorScheme.primary),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("🏐", fontSize = 32.sp)
-                    }
-                }
+                SpikeStreamBrandMark(size = 64.dp)
                 
                 Spacer(Modifier.width(20.dp))
                 
@@ -623,7 +745,7 @@ fun LoginScreen(
                     Text(
                         text = "SPIKESTREAM",
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Black,
+                            fontWeight = FontWeight.SemiBold,
                             letterSpacing = 1.5.sp
                         ),
                         color = MaterialTheme.colorScheme.onBackground
@@ -722,16 +844,17 @@ fun LoginScreen(
                 }
             }
 
-            Row(
+            TextButton(
+                onClick = onForgotPasswordClick,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                TextButton(onClick = onForgotPasswordClick) {
-                    Text(
-                        text = stringResource(R.string.login_password_forgot),
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.login_password_forgot),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(Modifier.height(8.dp))
@@ -740,7 +863,7 @@ fun LoginScreen(
                 onClick = { context.startActivity(Intent(context, InfoActivity::class.java)) }
             ) {
                 Text(
-                    text = "Info app",
+                    text = HelpLabels.forLanguage(context.resources.configuration.locales[0].language).title,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -795,7 +918,8 @@ fun DashboardScreen(
                             rtmpUrl = json.getString("rtmpUrl"),
                             youtubeChannelId = json.optionalYouTubeString("youtubeChannelId"),
                             youtubeChannelTitle = json.optionalYouTubeString("youtubeChannelTitle"),
-                            youtubeBroadcastId = json.optionalYouTubeString("youtubeBroadcastId")
+                            youtubeBroadcastId = json.optionalYouTubeString("youtubeBroadcastId"),
+                            youtubeManaged = json.optBoolean("youtubeManaged", false)
                         )
                     }
                     streams.clear()
@@ -845,7 +969,7 @@ fun DashboardScreen(
                         Column {
                             Text(
                                 text = stringResource(R.string.dashboard_title),
-                                fontWeight = FontWeight.Black,
+                                fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.titleLarge
                             )
                             Text(
@@ -856,6 +980,11 @@ fun DashboardScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = {
+                            context.startActivity(Intent(context, InfoActivity::class.java))
+                        }) {
+                            Icon(Icons.Default.Info, contentDescription = HelpLabels.forLanguage(context.resources.configuration.locales[0].language).title)
+                        }
                         IconButton(onClick = {
                             context.startActivity(Intent(context, SettingsActivity::class.java))
                         }) {
@@ -898,7 +1027,7 @@ fun DashboardScreen(
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.new_match_fab)) },
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     shape = RoundedCornerShape(16.dp)
                 )
             }
@@ -930,7 +1059,7 @@ fun DashboardScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 104.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(streams) { stream ->
@@ -942,6 +1071,8 @@ fun DashboardScreen(
                                         putExtra("TEAM_2", stream.teamB)
                                         putExtra("MATCH_ID", stream.matchId)
                                         putExtra("RTMP_URL", stream.rtmpUrl)
+                                        putExtra("YOUTUBE_MANAGED", stream.youtubeManaged)
+                                        putExtra("YOUTUBE_BROADCAST_ID", stream.youtubeBroadcastId)
                                     }
                                     context.startActivity(intent)
                                 }
@@ -950,15 +1081,7 @@ fun DashboardScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Surface(
-                                        modifier = Modifier.size(48.dp),
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.primaryContainer
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text("🏐", fontSize = 24.sp)
-                                        }
-                                    }
+                                    SpikeStreamBrandMark(size = 48.dp)
 
                                     Spacer(Modifier.width(16.dp))
 
@@ -1053,24 +1176,14 @@ fun RegisterScreen(onRegisterSuccess: (String) -> Unit, onBackToLogin: () -> Uni
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Surface(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .shadow(8.dp, CircleShape),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("🏐", fontSize = 24.sp)
-                    }
-                }
+                SpikeStreamBrandMark(size = 48.dp)
                 
                 Spacer(Modifier.width(16.dp))
                 
                 Text(
                     text = stringResource(R.string.create_account_title),
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp
                     )
                 )

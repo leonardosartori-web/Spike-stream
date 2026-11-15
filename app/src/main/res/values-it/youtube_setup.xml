@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_setup_button">Crea chiave riutilizzabile</string>
+    <string name="youtube_setup_confirm">Crea o recupera chiave</string>
+    <string name="youtube_setup_intro">Autorizza YouTube per creare o recuperare una chiave RTMP riutilizzabile. Non vengono creati eventi e il server SpikeStream non conserva token di accesso Google. Prima di trasmettere, configura la diretta con visibilità Pubblica in YouTube Studio: la chiave non imposta la visibilità dei video.</string>
+    <string name="youtube_setup_created">Chiave pronta. Prima di trasmettere, configura la visibilità Pubblica in YouTube Studio.</string>
+    <string name="youtube_setup_ended">Chiave recuperata. L’evento iniziale è terminato o è stato rimosso: prepara la diretta in YouTube Studio. SpikeStream non crea un nuovo evento.</string>
+    <string name="youtube_setup_kids">Video destinato ai bambini</string>
+    <string name="youtube_setup_kids_hint">Questa scelta sarà usata per le partite create con questa destinazione. Attiva se i bambini sono il pubblico a cui è destinato il video, non semplicemente perché giocano atleti minorenni.</string>
+    <string name="youtube_setup_enable_live">Abilita prima le dirette sul canale YouTube, poi riprova.</string>
+    <string name="youtube_setup_permission">Accedi e autorizza SpikeStream a creare la configurazione YouTube.</string>
+    <string name="youtube_setup_channel">Seleziona l’account del canale YouTube da configurare.</string>
+    <string name="youtube_setup_quota">Quota API YouTube esaurita. Riprova dopo il ripristino della quota.</string>
+    <string name="youtube_setup_busy">Configurazione già in corso per questo canale. Attendi e riprova.</string>
+    <string name="youtube_setup_in_use">La chiave è occupata o associata a un altro evento. Attendi la chiusura della diretta precedente o controlla e termina l’evento in YouTube Studio.</string>
+    <string name="youtube_setup_finished">La chiave configurata è stata rimossa su YouTube. Controlla il canale in Studio.</string>
+    <string name="youtube_setup_reconcile">La creazione non è ancora confermata. Attendi e riprova: cercheremo la stessa configurazione senza creare duplicati. Se il problema persiste, contatta il supporto.</string>
+    <string name="youtube_setup_invalid">Le impostazioni dell’evento sono cambiate. Controlla visibilità e avvio/chiusura automatici in YouTube Studio.</string>
+    <string name="youtube_destination_intro">Scegli una chiave RTMP da riutilizzare per le tue partite.</string>
+    <string name="youtube_existing_title">Usa una chiave esistente</string>
+    <string name="youtube_existing_description">Importa dal tuo canale una chiave già configurata.</string>
+    <string name="youtube_new_description">Crea una chiave riutilizzabile dall’app. Imposta la visibilità della diretta in YouTube Studio.</string>
+    <string name="youtube_automatic_finished">La diretta di questa partita è terminata. Crea una nuova partita per iniziare un altro evento.</string>
+    <string name="youtube_automatic_missing">Partita automatica non disponibile. Torna all’elenco e verifica il tuo account.</string>
+    <string name="youtube_automatic_preparing">Preparo la diretta…</string>
+    <string name="youtube_automatic_start_hint">Modalità automatica: Avvia prepara un evento pubblico. Stop lo conclude su YouTube dopo circa un minuto.</string>
+    <string name="youtube_mode_automatic">YouTube · Gestione automatica</string>
+    <string name="youtube_mode_direct">YouTube · Collegamento diretto</string>
+    <string name="youtube_direct_guide">Per il collegamento diretto: 1. Apri Studio e vai a Trasmetti. 2. Prepara la trasmissione e scegli Pubblica. 3. Torna qui e importa la chiave con Collegamento diretto. Verifica due trasmissioni successive prima di affidarti al riutilizzo delle impostazioni.</string>
+</resources>

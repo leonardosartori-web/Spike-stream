@@ -1,0 +1,12 @@
+<resources>
+    <string name="feedback_question">Comment s&#8217;est pass&#233; le direct ?</string>
+    <string name="feedback_ok">Tout s&#8217;est bien pass&#233;</string>
+    <string name="feedback_problem">Il y a eu des probl&#232;mes</string>
+    <string name="feedback_skip">Passer</string>
+    <string name="feedback_description">Que s&#8217;est-il pass&#233; ?</string>
+    <string name="feedback_hint">Si vous vous souvenez du moment, pr&#233;cisez-le ici.</string>
+    <string name="feedback_send">Envoyer</string>
+    <string name="feedback_finish_attempt">Terminer la tentative</string>
+    <string name="feedback_save_failed">Impossible d&#8217;enregistrer votre avis sur cet appareil. R&#233;essayez.</string>
+    <string name="feedback_saved">Avis enregistr&#233;. Merci !</string>
+</resources>

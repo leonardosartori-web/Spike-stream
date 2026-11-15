@@ -9,7 +9,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.leonardos.spikestream.activities.StreamActivity
-import com.pedro.library.rtmp.RtmpCamera2
+import com.leonardos.spikestream.streaming.AdaptiveRtmpCamera
 import com.pedro.library.view.OpenGlView
 import org.junit.Assert.*
 import org.junit.Before
@@ -44,7 +44,7 @@ class StreamLifecycleTest {
     private fun field(activity: StreamActivity, name: String): Any? =
         StreamActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.get(activity)
 
-    private fun camera(activity: StreamActivity) = field(activity, "rtmpCamera") as? RtmpCamera2
+    private fun camera(activity: StreamActivity) = field(activity, "rtmpCamera") as? AdaptiveRtmpCamera
 
     private fun awaitState(scenario: ActivityScenario<StreamActivity>, message: String,
         predicate: (StreamActivity) -> Boolean) {
@@ -62,7 +62,7 @@ class StreamLifecycleTest {
         launch().use { scenario ->
             scenario.onActivity { it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
             awaitState(scenario, "Portrait preview unavailable") { camera(it)?.isOnPreview == true }
-            lateinit var oldCamera: RtmpCamera2
+            lateinit var oldCamera: AdaptiveRtmpCamera
             scenario.onActivity {
                 oldCamera = camera(it)!!
                 it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -81,7 +81,7 @@ class StreamLifecycleTest {
         launch().use { scenario ->
             repeat(3) {
                 awaitState(scenario, "Preview unavailable") { camera(it)?.isOnPreview == true }
-                lateinit var previous: RtmpCamera2
+                lateinit var previous: AdaptiveRtmpCamera
                 scenario.onActivity { previous = camera(it)!! }
                 scenario.moveToState(Lifecycle.State.CREATED)
                 instrumentation.runOnMainSync {

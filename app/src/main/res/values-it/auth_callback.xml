@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources><string name="auth_callback_rejected">Non è stato possibile verificare l’accesso. Avvia di nuovo il login Google da SpikeStream.</string></resources>

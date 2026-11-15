@@ -82,10 +82,7 @@
                 <!-- Google App Links for secure authentication -->
                 <data android:scheme="https" />
                 <data android:host="spikestream.tooolky.com" />
-                <data android:pathPrefix="/auth/app-auth" />
-                <data android:scheme="http" />
-                <data android:host="spikestream.tooolky.com" />
-                <data android:pathPrefix="/auth/app-auth" />
+                <data android:path="/auth/app-auth" />
             </intent-filter>
 
         </activity>

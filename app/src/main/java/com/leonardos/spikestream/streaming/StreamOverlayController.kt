@@ -3,9 +3,9 @@ package com.leonardos.spikestream.streaming
 import android.content.Context
 import com.leonardos.spikestream.ui.components.DefaultOverlayStyle
 import com.leonardos.spikestream.ui.components.ScoreOverlayRenderer
-import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
+
 import com.pedro.encoder.utils.gl.TranslateTo
-import com.pedro.library.rtmp.RtmpCamera2
+import com.leonardos.spikestream.streaming.AdaptiveRtmpCamera
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,7 +38,17 @@ class StreamOverlayController(
         )
     }
 
-    private var imageFilter: ImageObjectFilterRender? = null
+    private var imageFilter: LiveImageFilter? = null
+    private var latestRender: (() -> Unit)? = null
+    fun confirmFrame(callback: () -> Unit) { imageFilter?.confirmFrame(callback) }
+    private var visible = true
+    fun setVisible(value: Boolean) {
+        if (visible != value) {
+            visible = value
+            if (value) latestRender?.invoke() else flashJob?.cancel()
+        }
+        imageFilter?.setAlpha(if (value) 1f else 0f)
+    }
     private var lastScoreHash: Int = 0
 
     private var lastTeam1Pts = -1
@@ -48,7 +58,7 @@ class StreamOverlayController(
      * Prepares and renders the initial scoreboard filter, appending it to the RTMP camera.
      */
     fun applyOverlay(
-        rtmpCamera: RtmpCamera2,
+        rtmpCamera: AdaptiveRtmpCamera,
         width: Int,
         height: Int,
         overlayPosition: TranslateTo,
@@ -59,7 +69,7 @@ class StreamOverlayController(
     ) {
         removeOverlay(rtmpCamera) // Ensure previous filter is detached first
 
-        val filter = ImageObjectFilterRender().apply {
+        val filter = LiveImageFilter().apply {
             setImage(
                 scoreRenderer.render(
                     width,
@@ -81,6 +91,7 @@ class StreamOverlayController(
             setPosition(overlayPosition)
         }
 
+        filter.setAlpha(if (visible) 1f else 0f)
         imageFilter = filter
         rtmpCamera.glInterface.addFilter(filter)
     }
@@ -88,23 +99,15 @@ class StreamOverlayController(
     /**
      * Removes the OpenGL overlay filter from the camera preview and stream.
      */
-    fun removeOverlay(rtmpCamera: RtmpCamera2) {
+    fun removeOverlay(rtmpCamera: AdaptiveRtmpCamera) {
         flashJob?.cancel()
         flashJob = null
         imageFilter?.let {
-            try {
-                rtmpCamera.glInterface.removeFilter(it)
-            } catch (e: Exception) {
-                // Fail-safe: fall back to removing the first index if object reference fails
-                try {
-                    rtmpCamera.glInterface.removeFilter(0)
-                } catch (ex: Exception) {
-                    // ignore index failures
-                }
-            }
+            runCatching { rtmpCamera.glInterface.removeFilter(it) }
             imageFilter = null
         }
         lastScoreHash = 0
+        latestRender = null
     }
 
     /**
@@ -150,9 +153,11 @@ class StreamOverlayController(
             imageFilter?.setImage(bmp)
         }
 
+        latestRender = ::renderAndApply
+        if (!visible) return
         renderAndApply()
 
-        // Loop flash: gira solo finché c'è qualcosa da animare
+        // Loop flash: gira solo finché c’è qualcosa da animare
         flashJob?.cancel()
         flashJob = scope.launch(Dispatchers.Default) {
             delay(50L) // lascia tempo al cancel di propagarsi

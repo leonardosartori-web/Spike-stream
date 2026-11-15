@@ -4,6 +4,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.sp
 
 // Set of Material typography styles to start with
@@ -57,16 +58,24 @@ val displayFontFamily = FontFamily(
     )
 )
 
+private val displayItalicFontFamily = FontFamily(
+    Font(
+        googleFont = GoogleFont("Outfit"),
+        fontProvider = provider,
+        style = FontStyle.Italic,
+    )
+)
+
 // Default Material 3 typography values
 val baseline = Typography()
 
 val AppTypography = Typography(
-    displayLarge = baseline.displayLarge.copy(fontFamily = displayFontFamily),
-    displayMedium = baseline.displayMedium.copy(fontFamily = displayFontFamily),
-    displaySmall = baseline.displaySmall.copy(fontFamily = displayFontFamily),
-    headlineLarge = baseline.headlineLarge.copy(fontFamily = displayFontFamily),
-    headlineMedium = baseline.headlineMedium.copy(fontFamily = displayFontFamily),
-    headlineSmall = baseline.headlineSmall.copy(fontFamily = displayFontFamily),
+    displayLarge = baseline.displayLarge.copy(fontFamily = displayItalicFontFamily, fontStyle = FontStyle.Italic),
+    displayMedium = baseline.displayMedium.copy(fontFamily = displayItalicFontFamily, fontStyle = FontStyle.Italic),
+    displaySmall = baseline.displaySmall.copy(fontFamily = displayItalicFontFamily, fontStyle = FontStyle.Italic),
+    headlineLarge = baseline.headlineLarge.copy(fontFamily = displayItalicFontFamily, fontStyle = FontStyle.Italic),
+    headlineMedium = baseline.headlineMedium.copy(fontFamily = displayItalicFontFamily, fontStyle = FontStyle.Italic),
+    headlineSmall = baseline.headlineSmall.copy(fontFamily = displayItalicFontFamily, fontStyle = FontStyle.Italic),
     titleLarge = baseline.titleLarge.copy(fontFamily = displayFontFamily),
     titleMedium = baseline.titleMedium.copy(fontFamily = displayFontFamily),
     titleSmall = baseline.titleSmall.copy(fontFamily = displayFontFamily),

@@ -26,7 +26,7 @@ object Logger {
 
     fun e(tag: String, msg: String, tr: Throwable? = null) {
         if (BuildConfig.DEBUG) {
-            if (tr != null) Log.e(tag, msg, tr)
+            if (tr != null) Log.e(tag, "$msg (${tr.javaClass.simpleName})")
             else Log.e(tag, msg)
         }
     }

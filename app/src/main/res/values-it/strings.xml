@@ -245,4 +245,5 @@
     <string name="youtube_watch_match">Guarda partita su YouTube</string>
     <string name="youtube_open_channel">Apri canale YouTube</string>
     <string name="youtube_open_failed">Nessuna app disponibile per aprire YouTube.</string>
+    <string name="create_match_limit_reached">Hai raggiunto il limite di partite del tuo piano. Puoi eliminare vecchie partite per crearne una nuova.</string>
 </resources>

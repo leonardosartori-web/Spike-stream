@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_setup_button">Créer une clé réutilisable</string>
+    <string name="youtube_setup_confirm">Créer ou récupérer la clé</string>
+    <string name="youtube_setup_intro">Autorisez YouTube pour créer ou récupérer une clé RTMP réutilisable. Aucun événement ne sera créé et le serveur SpikeStream ne conserve aucun jeton d’accès Google. Avant de diffuser, configurez la visibilité Publique dans YouTube Studio : la clé ne définit pas la visibilité des vidéos.</string>
+    <string name="youtube_setup_created">Clé prête. Avant de diffuser, configurez la visibilité Publique dans YouTube Studio.</string>
+    <string name="youtube_setup_ended">Clé récupérée. L’événement initial est terminé ou supprimé : préparez le direct dans YouTube Studio. SpikeStream ne crée pas de nouvel événement.</string>
+    <string name="youtube_setup_kids">Vidéo conçue pour les enfants</string>
+    <string name="youtube_setup_kids_hint">Ce choix concerne les matchs créés avec cette destination. Activez si les enfants sont le public visé, pas simplement parce que des athlètes mineurs jouent.</string>
+    <string name="youtube_setup_enable_live">Activez d’abord les directs sur votre chaîne YouTube, puis réessayez.</string>
+    <string name="youtube_setup_permission">Connectez-vous et autorisez SpikeStream à créer la configuration YouTube.</string>
+    <string name="youtube_setup_channel">Sélectionnez le compte de la chaîne YouTube à configurer.</string>
+    <string name="youtube_setup_quota">Quota API YouTube épuisé. Réessayez après sa réinitialisation.</string>
+    <string name="youtube_setup_busy">Une configuration est en cours pour cette chaîne. Patientez et réessayez.</string>
+    <string name="youtube_setup_in_use">La clé est occupée ou associée à un autre événement. Attendez la fin du direct précédent ou vérifiez et terminez cet événement dans YouTube Studio.</string>
+    <string name="youtube_setup_finished">La clé configurée a été supprimée sur YouTube. Vérifiez la chaîne dans Studio.</string>
+    <string name="youtube_setup_reconcile">La création n’est pas encore confirmée. Patientez et réessayez : nous rechercherons la même configuration sans doublon. Contactez le support si cela persiste.</string>
+    <string name="youtube_setup_invalid">Les réglages de l’événement ont changé. Vérifiez visibilité et démarrage/arrêt automatiques dans YouTube Studio.</string>
+    <string name="youtube_destination_intro">Choisissez une clé RTMP à réutiliser pour vos matchs.</string>
+    <string name="youtube_existing_title">Utiliser une clé existante</string>
+    <string name="youtube_existing_description">Importez une clé déjà configurée sur votre chaîne.</string>
+    <string name="youtube_new_description">Créez une clé réutilisable dans l’application. Réglez la visibilité dans YouTube Studio.</string>
+    <string name="youtube_automatic_finished">Le direct de ce match est terminé. Créez un nouveau match pour un autre événement.</string>
+    <string name="youtube_automatic_missing">Match automatique indisponible. Revenez à la liste et vérifiez votre compte.</string>
+    <string name="youtube_automatic_preparing">Préparation du direct…</string>
+    <string name="youtube_automatic_start_hint">Mode automatique : démarrer prépare un événement public. Arrêter le termine sur YouTube après environ une minute.</string>
+    <string name="youtube_mode_automatic">YouTube · Automatique</string>
+    <string name="youtube_mode_direct">YouTube · Connexion directe</string>
+    <string name="youtube_direct_guide">Pour la connexion directe : 1. Ouvrez Studio puis Diffusion. 2. Préparez le direct et choisissez Public. 3. Revenez ici et importez la clé avec Connexion directe. Testez deux directs successifs avant de compter sur les réglages réutilisés.</string>
+</resources>

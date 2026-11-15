@@ -6,8 +6,7 @@ import android.os.Looper
 import android.os.SystemClock
 import com.leonardos.spikestream.utils.Logger as Log
 import com.pedro.common.socket.base.SocketType
-import com.pedro.library.rtmp.RtmpCamera2
-import kotlin.math.max
+import com.leonardos.spikestream.streaming.AdaptiveRtmpCamera
 import kotlin.math.min
 
 enum class BroadcastStatus(val label: String) {
@@ -30,6 +29,10 @@ data class StreamTelemetry(
     val health: StreamHealth = StreamHealth.GOOD,
     val network: NetworkSnapshot = NetworkSnapshot.disconnected(),
     val actualBitrate: Long = 0L,
+    val encodedVideoBitrate: Long = 0L,
+    val encodedAudioBitrate: Long = 0L,
+    val recoveryDroppedFrames: Long = 0L,
+    val adaptationReason: String = "",
     val targetVideoBitrate: Int = 0,
     val fps: Int = 0,
     val droppedFrames: Long = 0L,
@@ -58,21 +61,15 @@ data class StreamTelemetry(
  */
 class StreamBitrateMonitor(
     context: Context,
-    private val cameraProvider: () -> RtmpCamera2?,
+    private val cameraProvider: () -> AdaptiveRtmpCamera?,
     private val onTelemetry: (StreamTelemetry) -> Unit,
     private val onFatalError: (String) -> Unit,
+    private val onConnected: () -> Unit = {},
 ) {
     companion object {
         private const val RTMP_CACHE_FRAMES = 200
-        private const val CONGESTION_PERCENT = 25f
-        private const val SEVERE_CONGESTION_PERCENT = 50
-        private const val CONGESTION_CONFIRMATION_SAMPLES = 2
-        private const val DROPPED_FRAMES_PRESSURE = 2L
-        private const val DROPPED_FRAMES_SEVERE = 8L
         private const val LOW_FPS_CONFIRM_MS = 3_000L
         private const val HEALTH_RECOVERY_MS = 8_000L
-        private const val ADJUST_COOLDOWN_MS = 3_000L
-        private const val RECOVERY_WINDOW_SAMPLES = 15
         private const val SOCKET_TIMEOUT_MS = 12_000L
         private const val NETWORK_LOSS_GRACE_MS = 2_000L
     }
@@ -88,11 +85,14 @@ class StreamBitrateMonitor(
     private var retryScheduled = false
     private var pendingRetryReason: String? = null
     private var reconnectAttempt = 0
-    private var lastAdjustmentAt = 0L
-    private var stableSamples = 0
+    private var adaptivePolicy: AdaptiveBitratePolicy? = null
+    private var lastSampleAt = 0L
+    private var lastSentBytes = 0L
+    private var connectedAt = 0L
+    private var lastDiagnosticAt = 0L
+    private var lastKeyframeRequestAt = 0L
     private var lastDroppedFrames = 0L
     private var totalDroppedFrames = 0L
-    private var congestionSamples = 0
     private var lowFpsStartedAt = 0L
     private var lastDegradedAt = 0L
     private var pendingNetworkLoss: Runnable? = null
@@ -104,6 +104,7 @@ class StreamBitrateMonitor(
                 failPermanently("Il video non produce frame da 15 secondi")
                 return
             }
+            if (connectionLive) sampleSender()
             mainHandler.postDelayed(this, 1_000L)
         }
     }
@@ -140,8 +141,12 @@ class StreamBitrateMonitor(
 
             runCatching {
                 client.setReTries(Int.MAX_VALUE)
-                client.setSocketType(SocketType.JAVA)
+                // Same transport in debug and release, validated comparatively on the Oppo.
+                client.setSocketType(SocketType.KTOR)
+                Log.i("StreamTransport", "socket=KTOR profile=${selectedProfile.name}")
                 client.setSocketTimeout(SOCKET_TIMEOUT_MS)
+                // 128-byte default creates hundreds of tiny RTMP chunks per HD frame.
+                client.setWriteChunkSize(4_096)
                 // RootEncoder implements this check with ICMP/Echo. CDNs and
                 // mobile networks commonly block Echo even while RTMP is healthy.
                 client.setCheckServerAlive(false)
@@ -174,11 +179,12 @@ class StreamBitrateMonitor(
             retryScheduled = false
             pendingRetryReason = null
             reconnectAttempt = 0
-            lastAdjustmentAt = 0L
-            stableSamples = 0
+            adaptivePolicy = AdaptiveBitratePolicy(selectedProfile)
+            lastSampleAt = 0L
+            lastSentBytes = 0L
+            lastDiagnosticAt = 0L
             lastDroppedFrames = 0L
             totalDroppedFrames = 0L
-            congestionSamples = 0
             lowFpsStartedAt = 0L
             lastDegradedAt = 0L
 
@@ -187,6 +193,10 @@ class StreamBitrateMonitor(
                     status = BroadcastStatus.CONNECTING,
                     health = StreamHealth.DEGRADED,
                     actualBitrate = 0L,
+                    encodedVideoBitrate = 0L,
+                    encodedAudioBitrate = 0L,
+                    recoveryDroppedFrames = 0L,
+                    adaptationReason = "connecting",
                     targetVideoBitrate = selectedProfile.startBitrate,
                     fps = 0,
                     droppedFrames = 0L,
@@ -211,6 +221,7 @@ class StreamBitrateMonitor(
             retryScheduled = false
             pendingRetryReason = null
             profile = null
+            adaptivePolicy = null
             publish(
                 StreamTelemetry(
                     status = BroadcastStatus.IDLE,
@@ -245,21 +256,25 @@ class StreamBitrateMonitor(
     fun onConnectionSuccess() {
         runOnMain {
             if (!sessionActive) return@runOnMain
+            if (!connectionLive) onConnected()
             connectionLive = true
             retryScheduled = false
             pendingRetryReason = null
-            reconnectAttempt = 0
-            stableSamples = 0
-            congestionSamples = 0
+            connectedAt = SystemClock.elapsedRealtime()
+            adaptivePolicy?.connected(connectedAt)
+            lastSampleAt = connectedAt
+            lastSentBytes = cameraProvider()?.streamClient?.getBytesSend() ?: 0L
+            lastDroppedFrames = 0L
+            cameraProvider()?.takeEncodedSample()
             lowFpsStartedAt = 0L
             lastDegradedAt = 0L
-            cameraProvider()?.requestKeyFrame()
+            cameraProvider()?.resyncAtKeyframe()
             publish(
                 telemetry.copy(
                     status = BroadcastStatus.LIVE,
                     health = StreamHealth.GOOD,
-                    reconnectAttempt = 0,
-                    detail = "Trasmissione stabile",
+                    reconnectAttempt = reconnectAttempt,
+                    detail = "Assestamento della trasmissione",
                 )
             )
         }
@@ -304,6 +319,12 @@ class StreamBitrateMonitor(
                     detail = "Collegamento interrotto, ripristino automatico",
                 )
             )
+            if (!retryScheduled) {
+                pendingRetryReason = "Collegamento interrotto"
+                if (telemetry.network.hasUsableInternet) {
+                    scheduleRetry(pendingRetryReason!!, retryDelayMs(reconnectAttempt))
+                }
+            }
         }
     }
 
@@ -315,68 +336,71 @@ class StreamBitrateMonitor(
         }
     }
 
-    fun onNewBitrate(bitrate: Long) {
-        runOnMain {
-            if (!sessionActive) return@runOnMain
-            val selectedProfile = profile ?: return@runOnMain
-            val client = cameraProvider()?.streamClient ?: return@runOnMain
+    // The library callback is an EMA of audio+video. Sample its cumulative bytes
+    // on our own clock instead: zero output must remain visible during a stalled write.
+    fun onNewBitrate(@Suppress("UNUSED_PARAMETER") bitrate: Long) = Unit
 
-            val queueItems = runCatching { client.getItemsInCache() }.getOrDefault(0)
-            val queueCapacity = runCatching { client.getCacheSize() }.getOrDefault(RTMP_CACHE_FRAMES)
-            val rawDropped = runCatching {
-                client.getDroppedAudioFrames() + client.getDroppedVideoFrames()
-            }.getOrDefault(0L)
-            val droppedDelta = if (rawDropped >= lastDroppedFrames) {
-                rawDropped - lastDroppedFrames
-            } else {
-                // Sender counters reset after a reconnect.
-                rawDropped
-            }
-            lastDroppedFrames = rawDropped
-            totalDroppedFrames += droppedDelta
-
-            val senderUnderPressure = runCatching {
-                client.hasCongestion(CONGESTION_PERCENT)
-            }.getOrDefault(false) || droppedDelta >= DROPPED_FRAMES_PRESSURE
-            congestionSamples = if (senderUnderPressure) {
-                (congestionSamples + 1).coerceAtMost(CONGESTION_CONFIRMATION_SAMPLES)
-            } else {
-                0
-            }
-            val queuePercent = if (queueCapacity > 0) {
-                queueItems * 100 / queueCapacity
-            } else {
-                0
-            }
-            val severeCongestion =
-                queuePercent >= SEVERE_CONGESTION_PERCENT ||
-                    droppedDelta >= DROPPED_FRAMES_SEVERE
-            val congested =
-                severeCongestion ||
-                    congestionSamples >= CONGESTION_CONFIRMATION_SAMPLES
-
-            val target = adaptBitrate(
-                congested = congested,
-                selectedProfile = selectedProfile,
-            )
-
-            publish(
-                telemetry.copy(
-                    actualBitrate = bitrate,
-                    targetVideoBitrate = target,
-                    droppedFrames = totalDroppedFrames,
-                    queueItems = queueItems,
-                    queueCapacity = queueCapacity,
-                    health = calculateHealth(congested = congested),
-                    detail = when {
-                        telemetry.status != BroadcastStatus.LIVE -> telemetry.detail
-                        congested -> "Rete congestionata: qualità adattata"
-                        target < selectedProfile.startBitrate -> "Qualità adattiva"
-                        else -> "Trasmissione stabile"
-                    },
-                )
-            )
+    private fun sampleSender() {
+        val camera = cameraProvider() ?: return
+        val selectedProfile = profile ?: return
+        val policy = adaptivePolicy ?: return
+        val client = camera.streamClient
+        val now = SystemClock.elapsedRealtime()
+        val elapsed = (now - lastSampleAt).coerceAtLeast(1L)
+        val rawBytes = client.getBytesSend()
+        val sentBytes = if (rawBytes >= lastSentBytes) rawBytes - lastSentBytes else rawBytes
+        lastSentBytes = rawBytes
+        lastSampleAt = now
+        val encoded = camera.takeEncodedSample()
+        val rawDropped = client.getDroppedAudioFrames() + client.getDroppedVideoFrames()
+        val droppedDelta = if (rawDropped >= lastDroppedFrames) rawDropped - lastDroppedFrames else rawDropped
+        lastDroppedFrames = rawDropped
+        totalDroppedFrames += droppedDelta
+        val queueItems = client.getItemsInCache()
+        val queueCapacity = client.getCacheSize()
+        val fps = (encoded.videoFrames * 1_000 / elapsed).toInt()
+        val decision = policy.sample(AdaptiveBitratePolicy.Sample(now, queueItems, queueCapacity,
+            droppedDelta, sentBytes, encoded.videoFrames, fps), telemetry.targetVideoBitrate)
+        val previousTarget = telemetry.targetVideoBitrate
+        setTargetBitrate(decision.target)
+        if (decision.resync) camera.resyncAtKeyframe()
+        // Some hardware codecs ignore the requested GOP; only force a keyframe
+        // when the measured interval exceeds the configured two seconds.
+        if (now - camera.lastKeyframeAtMs >= 2_500 && now - lastKeyframeRequestAt >= 2_000) {
+            lastKeyframeRequestAt = now
+            camera.requestKeyFrame()
         }
+        if (now - connectedAt >= 30_000) reconnectAttempt = 0
+        publish(telemetry.copy(
+            actualBitrate = sentBytes * 8_000 / elapsed,
+            encodedVideoBitrate = encoded.videoBytes * 8_000 / elapsed,
+            encodedAudioBitrate = encoded.audioBytes * 8_000 / elapsed,
+            recoveryDroppedFrames = telemetry.recoveryDroppedFrames + encoded.recoveryDrops,
+            adaptationReason = decision.reason,
+            fps = fps,
+            droppedFrames = totalDroppedFrames,
+            queueItems = queueItems,
+            queueCapacity = queueCapacity,
+            reconnectAttempt = reconnectAttempt,
+            health = calculateHealth(fps, decision.congested),
+            detail = when {
+                decision.congested -> "Invio in ritardo: qualità adattata"
+                decision.reason == "warmup" -> "Assestamento della trasmissione"
+                fps < selectedProfile.fps * 7 / 10 -> "Encoder lento: verificare temperatura e carico"
+                telemetry.targetVideoBitrate < selectedProfile.startBitrate -> "Banda ridotta: qualità adattiva"
+                else -> "Trasmissione stabile"
+            },
+        ))
+        if (previousTarget != telemetry.targetVideoBitrate || decision.resync || decision.reconnect ||
+            now - lastDiagnosticAt >= 5_000) {
+            lastDiagnosticAt = now
+            Log.i("StreamTransport", "net=${telemetry.network.transport} target=${telemetry.targetVideoBitrate} " +
+                "encodedVideo=${telemetry.encodedVideoBitrate} encodedAudio=${telemetry.encodedAudioBitrate} " +
+                "sent=${telemetry.actualBitrate} fps=$fps queue=$queueItems/$queueCapacity " +
+                "drops=$droppedDelta recoveryDrops=${encoded.recoveryDrops} " +
+                "reason=${decision.reason} resync=${decision.resync}")
+        }
+        if (decision.reconnect) scheduleRetry("Invio RTMP bloccato", retryDelayMs(reconnectAttempt))
     }
 
     private fun handleNetworkChanged(snapshot: NetworkSnapshot) {
@@ -447,10 +471,8 @@ class StreamBitrateMonitor(
             pendingNetworkLoss = null
             if (!sessionActive) return@Runnable
 
-            val selectedProfile = profile ?: return@Runnable
             connectionLive = false
             pendingRetryReason = pendingRetryReason ?: "Internet non disponibile"
-            setTargetBitrate(selectedProfile.minBitrate)
             publish(
                 telemetry.copy(
                     network = snapshot,
@@ -477,7 +499,9 @@ class StreamBitrateMonitor(
             return
         }
 
+        connectionLive = false
         reconnectAttempt++
+        Log.i("StreamTransport", "reconnect attempt=$reconnectAttempt delayMs=$delayMs net=${telemetry.network.transport}")
         val scheduled = runCatching {
             camera.streamClient.reTry(delayMs, reason, null)
         }.getOrElse {
@@ -492,6 +516,7 @@ class StreamBitrateMonitor(
                     status = BroadcastStatus.RECOVERING,
                     health = StreamHealth.CRITICAL,
                     reconnectAttempt = reconnectAttempt,
+                    actualBitrate = 0L,
                     detail = "Ripristino automatico tra ${(delayMs / 1_000f)} s",
                 )
             )
@@ -500,67 +525,15 @@ class StreamBitrateMonitor(
         }
     }
 
-    private fun adaptBitrate(
-        congested: Boolean,
-        selectedProfile: StreamProfile,
-    ): Int {
-        val now = SystemClock.elapsedRealtime()
-        val currentTarget = telemetry.targetVideoBitrate
-            .takeIf { it > 0 }
-            ?: selectedProfile.startBitrate
-        val canAdjust = now - lastAdjustmentAt >= ADJUST_COOLDOWN_MS
-
-        return when {
-            canAdjust && congested -> {
-                stableSamples = 0
-                lastAdjustmentAt = now
-                val reduced = max(selectedProfile.minBitrate, (currentTarget * 0.78f).toInt())
-                setTargetBitrate(reduced)
-                reduced
-            }
-            congested -> {
-                stableSamples = 0
-                currentTarget
-            }
-            else -> {
-                stableSamples++
-                if (canAdjust && stableSamples >= RECOVERY_WINDOW_SAMPLES) {
-                    stableSamples = 0
-                    lastAdjustmentAt = now
-                    val ceiling = bitrateCeiling(selectedProfile)
-                    val increased = min(
-                        ceiling,
-                        max(currentTarget + 100_000, (currentTarget * 1.08f).toInt()),
-                    )
-                    setTargetBitrate(increased)
-                    increased
-                } else {
-                    currentTarget
-                }
-            }
-        }
-    }
-
-    private fun bitrateCeiling(selectedProfile: StreamProfile): Int {
-        // linkUpstreamBandwidthKbps describes the local link and is especially
-        // unreliable in emulators. Real sender congestion is the source of truth.
-        return (if (telemetry.network.transport == NetworkTransport.CELLULAR) {
-            val mobileCeiling = if (selectedProfile == StreamProfile.HD_720) {
-                1_850_000
-            } else {
-                1_400_000
-            }
-            min(selectedProfile.maxBitrate, mobileCeiling)
-        } else {
-            selectedProfile.maxBitrate
-        }).coerceAtLeast(selectedProfile.minBitrate)
-    }
+    private fun bitrateCeiling(selectedProfile: StreamProfile): Int = selectedProfile.maxBitrate
 
     private fun setTargetBitrate(bitrate: Int) {
         if (bitrate <= 0 || bitrate == telemetry.targetVideoBitrate) return
-        runCatching { cameraProvider()?.setVideoBitrateOnFly(bitrate) }
+        val camera = cameraProvider() ?: return
+        if (!camera.isStreaming) return
+        runCatching { camera.setVideoBitrateOnFly(bitrate) }
+            .onSuccess { telemetry = telemetry.copy(targetVideoBitrate = bitrate) }
             .onFailure { Log.e("StreamResilience", "Cambio bitrate fallito", it) }
-        telemetry = telemetry.copy(targetVideoBitrate = bitrate)
     }
 
     private fun calculateHealth(

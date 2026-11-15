@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="youtube_managed_access_hint">L’accès suit la limite YouTube avec SpikeStream de votre offre. Une limite de 0 bloque la fonction. Free est sans expiration.</string>
+<string name="youtube_managed_access_required">Votre offre ne permet pas actuellement YouTube avec SpikeStream. Vérifiez votre offre ou utilisez une destination configurée dans YouTube Studio.</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="account_refresh">Actualiser les accès</string>
+<string name="account_refresh_failed">Impossible de vérifier votre accès. Réessayez avant de créer le match.</string>
+<string name="account_locked">🔒 Cette destination est indisponible pour votre compte ou la limite de matchs enregistrés est atteinte.</string>
+<string name="account_plans">Offres et autorisations</string>
+<string name="account_limit_reached">La limite de matchs enregistrés pour cette destination ou votre compte est atteinte. Supprimez un match pour libérer une place ou vérifiez votre offre.</string>
+<string name="account_saved_match_locked">Accès aux nouveaux événements YouTube absent ou expiré. Vérifiez votre offre ou créez un match avec une destination préparée dans YouTube Studio. Ce match ne sera pas converti automatiquement.</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="account_refresh">Refresh access</string>
+<string name="account_refresh_failed">Access could not be checked. Try again before creating a match.</string>
+<string name="account_locked">🔒 This destination is unavailable for your account or its saved match limit has been reached.</string>
+<string name="account_plans">Plans and access</string>
+<string name="account_limit_reached">The saved match limit for this destination or your account has been reached. Delete a match to free a slot, or review your plan.</string>
+<string name="account_saved_match_locked">Access to new YouTube events is missing or expired. Review your plan, or create a match using a destination prepared in YouTube Studio. This match will not be converted automatically.</string>
+</resources>

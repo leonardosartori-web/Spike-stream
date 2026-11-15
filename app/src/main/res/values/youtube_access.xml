@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="youtube_managed_access_hint">Access follows the YouTube with SpikeStream limit in your plan. A limit of 0 blocks the feature. Free never expires.</string>
+<string name="youtube_managed_access_required">Your plan does not currently allow YouTube with SpikeStream. Review your plan or use a destination configured in YouTube Studio.</string>
+</resources>

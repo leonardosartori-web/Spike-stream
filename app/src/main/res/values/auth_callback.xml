@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources><string name="auth_callback_rejected">Login could not be verified. Start Google sign-in again from SpikeStream.</string></resources>

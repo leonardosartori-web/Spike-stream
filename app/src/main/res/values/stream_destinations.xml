@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="destination_existing_match">From an existing match</string>
+    <string name="destination_title">Where do you want to stream?</string>
+    <string name="destination_subtitle">Choose a platform, then select the destination for this match.</string>
+    <string name="destination_custom">Custom RTMP</string>
+    <string name="destination_recent">Recent destinations</string>
+    <string name="destination_server_key">Server + key</string>
+    <string name="destination_full_url">Complete RTMP URL</string>
+    <string name="destination_name">Destination name (optional)</string>
+    <string name="destination_server">Server URL</string>
+    <string name="destination_key">Stream key</string>
+    <string name="destination_show_key">Show key</string>
+    <string name="destination_hide_key">Hide key</string>
+    <string name="destination_manual_hint">Copy the server and key from your platform. You can also paste a complete RTMP/RTMPS URL. The public video link is not a streaming address.</string>
+    <string name="destination_youtube_hint">The key is reusable. Before streaming, check the event and Public visibility in YouTube Studio.</string>
+    <string name="destination_facebook_hint">Connect Facebook and choose your account or a managed Page. No live broadcast is created during selection.</string>
+    <string name="destination_facebook_publish">Creating the match prepares a public Facebook live broadcast for this destination. Start streaming from the match to send video.</string>
+    <string name="destination_not_live">Destination selected. After creating the match, start streaming and check publication on the platform.</string>
+    <string name="destination_loading">Loading destinations…</string>
+    <string name="destination_connect">Connect and select</string>
+    <string name="destination_change">Change destination</string>
+    <string name="destination_change_account">Change account</string>
+    <string name="destination_open_youtube">Open YouTube Studio</string>
+    <string name="destination_open_facebook">Open Facebook Live Producer</string>
+    <string name="destination_retry">Retry</string>
+    <string name="destination_selected">Selected destination</string>
+    <string name="destination_details">RTMP details</string>
+    <string name="destination_facebook_select">Choose a Facebook destination</string>
+    <string name="destination_page">Page</string>
+    <string name="destination_account">Account</string>
+    <string name="destination_cached">Saved YouTube list: availability has not been verified. Refresh before using a changed or reset key.</string>
+    <string name="destination_recent_hint">Saved destination: check that its stream key is still valid. The link to an earlier live event is not reused.</string>
+    <string name="destination_youtube_empty">No streams found. Enable live streaming and prepare a stream in YouTube Studio, then retry or change account.</string>
+    <string name="destination_login_cancelled">Connection cancelled. Connect again to choose a destination.</string>
+    <string name="destination_fb_session">Session expired. Reconnect Facebook; if it persists, sign in to Spike Stream again.</string>
+    <string name="destination_fb_permissions">Facebook has not granted the required permissions. Reconnect and allow access to your Pages, or use a manual RTMP address from Live Producer.</string>
+    <string name="destination_fb_unavailable">Facebook destination unavailable. Choose another account or Page, or check eligibility in Live Producer.</string>
+    <string name="destination_network_error">Unable to complete the request. Check your connection and retry.</string>
+    <string name="destination_browser_error">Unable to open the browser.</string>
+</resources>

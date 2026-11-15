@@ -1,0 +1,6 @@
+<resources>
+    <string name="automatic_replay_team">Replay automatico · %1$s</string>
+    <string name="automatic_replay_off">Disattivato</string>
+    <string name="automatic_replay_live">Torna live</string>
+    <string name="automatic_replay_unavailable">Replay non disponibile su questo dispositivo</string>
+</resources>

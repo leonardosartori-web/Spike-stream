@@ -4,10 +4,10 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.leonardos.spikestream.utils.Logger as Log
-import com.pedro.library.rtmp.RtmpCamera2
+import com.leonardos.spikestream.streaming.AdaptiveRtmpCamera
 
 /**
- * Chooses a conservative initial profile. Once a session starts its resolution
+ * Chooses the requested initial profile. Once a session starts its resolution
  * is fixed; changing only bitrate avoids a visible RTMP restart.
  */
 class StreamNetworkManager(private val context: Context) {
@@ -38,21 +38,17 @@ class StreamNetworkManager(private val context: Context) {
     /**
      * Resolves the immutable resolution used by a complete live session.
      *
-     * AUTO deliberately prefers continuity in venues: Android link bandwidth
-     * is not an Internet upload measurement and gym Wi-Fi is often congested.
-     * Ethernet is the only transport promoted to HD without operator input.
+     * Transport type and Android link bandwidth do not measure Internet upload.
+     * AUTO starts at 480p; HD remains an explicit operator choice.
      */
     fun selectProfile(
         mode: StreamQualityMode,
-        snapshot: NetworkSnapshot = currentSnapshot(),
+        @Suppress("UNUSED_PARAMETER") snapshot: NetworkSnapshot = currentSnapshot(),
     ): StreamProfile {
         return when (mode) {
             StreamQualityMode.STABLE_480 -> StreamProfile.SD_480
             StreamQualityMode.HD_720 -> StreamProfile.HD_720
-            StreamQualityMode.AUTO -> when (snapshot.transport) {
-                NetworkTransport.ETHERNET -> StreamProfile.HD_720
-                else -> StreamProfile.SD_480
-            }
+            StreamQualityMode.AUTO -> StreamProfile.SD_480
         }
     }
 
@@ -64,7 +60,7 @@ class StreamNetworkManager(private val context: Context) {
      * 16:9, so a device limitation can never deform the published frame.
      */
     fun prepareVideoCompat(
-        camera: RtmpCamera2,
+        camera: AdaptiveRtmpCamera,
         preferredProfile: StreamProfile,
         isPortrait: Boolean,
     ): StreamProfile? {

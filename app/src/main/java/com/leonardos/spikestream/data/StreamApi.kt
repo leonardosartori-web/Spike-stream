@@ -8,6 +8,7 @@ import com.leonardos.spikestream.utils.Constants
 import com.leonardos.spikestream.utils.Logger as Log
 import com.leonardos.spikestream.utils.getHttpClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType
 import okhttp3.Request
@@ -39,7 +40,8 @@ data class YouTubeStreamDestination(
     val status: String,
     val youtubeChannelId: String? = null,
     val youtubeChannelTitle: String? = null,
-    val youtubeBroadcastId: String? = null
+    val youtubeBroadcastId: String? = null,
+    val preconfigured: Boolean = false
 ) {
     val displayName: String
         get() = label.ifBlank { title.ifBlank { "YouTube stream" } }
@@ -65,7 +67,7 @@ sealed class InviteResult {
 }
 
 sealed class GetGameResult {
-    data class Success(val team1Pts: Int, val team2Pts: Int, val team1Sets: Int, val team2Sets: Int) : GetGameResult()
+    data class Success(val team1Pts: Int, val team2Pts: Int, val team1Sets: Int, val team2Sets: Int, val revision: Long = -1) : GetGameResult()
     data class Error(val message: Int) : GetGameResult()
 }
 
@@ -168,7 +170,9 @@ object StreamApi {
         teamAName: String,
         teamBName: String,
         rtmpUrl: String,
-        youtubeDestination: YouTubeStreamDestination? = null
+        youtubeDestination: YouTubeStreamDestination? = null,
+        youtubeManaged: Boolean = false,
+        youtubeMadeForKids: Boolean = false
     ): CreateMatchResult = withContext(Dispatchers.IO) {
         try {
             val client = getHttpClient()
@@ -177,6 +181,12 @@ object StreamApi {
                 put("teamBName", teamBName)
                 put("rtmpUrl", rtmpUrl)
                 putYouTubeDestination(youtubeDestination, rtmpUrl)
+                if (youtubeManaged) {
+                    put("youtubeManaged", true)
+                    put("youtubeStreamId", youtubeDestination?.id)
+                    put("youtubeMadeForKids", youtubeMadeForKids)
+                    remove("youtubeBroadcastId")
+                }
             }
 
             val mediaType = MediaType.get("application/json; charset=utf-8")
@@ -197,7 +207,15 @@ object StreamApi {
                 CreateMatchResult.Success(matchId)
             } else {
                 Log.w("CreateMatch", "Create match failed: HTTP ${response.code()}")
-                CreateMatchResult.Error(R.string.create_match_failed)
+                val errorCode = runCatching { JSONObject(body).optString("code") }.getOrNull()
+                val message = if (response.code() == 403 && errorCode == "MATCH_LIMIT_REACHED") {
+                    R.string.account_limit_reached
+                } else if (errorCode == "YOUTUBE_MANAGED_ACCESS_REQUIRED") {
+                    R.string.youtube_managed_access_required
+                } else {
+                    R.string.create_match_failed
+                }
+                CreateMatchResult.Error(message)
             }
         } catch (e: Exception) {
             Log.e("CreateMatch", "Create match request failed", e)
@@ -267,7 +285,7 @@ object StreamApi {
         }
     }
 
-    private fun parseYouTubeStream(json: JSONObject?): YouTubeStreamDestination? {
+    internal fun parseYouTubeStream(json: JSONObject?): YouTubeStreamDestination? {
         if (json == null) return null
 
         val directUrl = json.optString("rtmpUrl", "").trim()
@@ -290,7 +308,8 @@ object StreamApi {
             status = json.optString("status", ""),
             youtubeChannelId = json.optionalYouTubeString("youtubeChannelId"),
             youtubeChannelTitle = json.optionalYouTubeString("youtubeChannelTitle"),
-            youtubeBroadcastId = json.optionalYouTubeString("youtubeBroadcastId")
+            youtubeBroadcastId = json.optionalYouTubeString("youtubeBroadcastId"),
+            preconfigured = json.optBoolean("preconfigured", false)
         )
     }
 
@@ -298,32 +317,61 @@ object StreamApi {
         startsWith("rtmp://", ignoreCase = true) ||
             startsWith("rtmps://", ignoreCase = true)
 
-    suspend fun fetchFacebookRTMP(fbAccessToken: String, appToken: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val client = getHttpClient()
-            val json = JSONObject().apply {
-                put("accessToken", fbAccessToken)
+    suspend fun fetchFacebookDestinations(fbToken: String, appToken: String): FacebookResult<List<FacebookDestination>> =
+        facebookRequest("facebook-destinations", appToken, JSONObject().put("accessToken", fbToken)) { json ->
+            val entries = json.getJSONArray("destinations")
+            buildList {
+                for (i in 0 until entries.length()) {
+                    val item = entries.getJSONObject(i)
+                    val type = item.getString("type")
+                    if (type in setOf("account", "page")) {
+                        add(FacebookDestination(item.getString("id"), item.getString("name"), type))
+                    }
+                }
             }
-            val body = RequestBody.create(
-                MediaType.parse("application/json; charset=utf-8"),
-                json.toString()
-            )
-            val request = Request.Builder()
-                .url("${Constants.BASE_URL}/games/facebook-rtmp")
-                .addHeader("Authorization", "Bearer $appToken")
-                .post(body)
-                .build()
+        }
 
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val responseBody = response.body()?.string()
-                val jsonResponse = JSONObject(responseBody ?: "{}")
-                return@withContext jsonResponse.optString("rtmpUrl", null)
+    suspend fun createFacebookLive(destination: StreamDestination, appToken: String, title: String): FacebookResult<String> {
+        val target = destination.facebook ?: return FacebookResult.Error(FacebookFailure.DESTINATION)
+        return facebookRequest("facebook-rtmp", appToken, JSONObject().apply {
+            put("accessToken", destination.facebookAccessToken)
+            put("destinationType", target.type)
+            if (target.type == "page") put("pageId", target.id)
+            put("title", title.take(254))
+        }) { json ->
+            json.getString("rtmpUrl").also {
+                require(com.leonardos.spikestream.utils.RtmpUrlValidator.isValid(it))
             }
-            null
+        }
+    }
+
+    private suspend fun <T> facebookRequest(
+        endpoint: String, appToken: String, json: JSONObject, parse: (JSONObject) -> T
+    ): FacebookResult<T> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("${Constants.BASE_URL}/games/$endpoint")
+                .addHeader("Authorization", "Bearer $appToken")
+                .post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), json.toString()))
+                .build()
+            getHttpClient().newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    FacebookResult.Success(parse(JSONObject(response.body()?.string() ?: "{}")))
+                } else {
+                    FacebookResult.Error(when (response.code()) {
+                        401 -> FacebookFailure.SESSION
+                        403 -> FacebookFailure.PERMISSION
+                        400, 404, 409 -> FacebookFailure.DESTINATION
+                        429 -> FacebookFailure.RATE_LIMIT
+                        else -> FacebookFailure.NETWORK
+                    })
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e("FacebookRTMP", "Failed to fetch FB rtmp", e)
-            null
+            // Do not log URLs, tokens, or response bodies.
+            FacebookResult.Error(FacebookFailure.NETWORK)
         }
     }
 
@@ -414,7 +462,7 @@ object StreamApi {
                         teamASets.getInt(i) < teamBSets.getInt(i)
                     }
 
-                    GetGameResult.Success(aPts, bPts, aSets, bSets)
+                    GetGameResult.Success(aPts, bPts, aSets, bSets, json.optLong("scoreRevision", -1))
                 } else {
                     GetGameResult.Success(0, 0, 0, 0)
                 }

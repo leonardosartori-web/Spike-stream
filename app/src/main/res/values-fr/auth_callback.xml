@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources><string name="auth_callback_rejected">Impossible de vérifier la connexion. Relancez la connexion Google depuis SpikeStream.</string></resources>

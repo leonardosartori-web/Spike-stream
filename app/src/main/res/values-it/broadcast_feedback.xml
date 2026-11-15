@@ -1,0 +1,12 @@
+<resources>
+    <string name="feedback_question">Com&#8217;&#232; andata la diretta?</string>
+    <string name="feedback_ok">Tutto bene</string>
+    <string name="feedback_problem">Ci sono stati problemi</string>
+    <string name="feedback_skip">Salta</string>
+    <string name="feedback_description">Cosa &#232; successo?</string>
+    <string name="feedback_hint">Se ricordi quando &#232; successo, scrivilo qui.</string>
+    <string name="feedback_send">Invia</string>
+    <string name="feedback_finish_attempt">Concludi tentativo</string>
+    <string name="feedback_save_failed">Impossibile salvare il feedback sul dispositivo. Riprova.</string>
+    <string name="feedback_saved">Feedback salvato. Grazie!</string>
+</resources>

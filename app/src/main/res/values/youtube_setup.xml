@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_setup_button">Create reusable key</string>
+    <string name="youtube_setup_confirm">Create or retrieve key</string>
+    <string name="youtube_setup_intro">Authorize YouTube to create or retrieve a reusable RTMP key. No events are created and the SpikeStream server does not store Google access tokens. Before streaming, configure the broadcast as Public in YouTube Studio: the key does not set video visibility.</string>
+    <string name="youtube_setup_created">Key ready. Before streaming, set Public visibility in YouTube Studio.</string>
+    <string name="youtube_setup_ended">Key recovered. The initial event ended or was removed: prepare the broadcast in YouTube Studio. SpikeStream does not create another event.</string>
+    <string name="youtube_setup_kids">Video made for kids</string>
+    <string name="youtube_setup_kids_hint">This choice applies to matches created with this destination. Select it if children are the intended audience, not simply because young athletes are playing.</string>
+    <string name="youtube_setup_enable_live">Enable live streaming on your YouTube channel first, then retry.</string>
+    <string name="youtube_setup_permission">Sign in and authorize SpikeStream to create the YouTube setup.</string>
+    <string name="youtube_setup_channel">Select the account for the YouTube channel to configure.</string>
+    <string name="youtube_setup_quota">YouTube API quota exhausted. Retry after the quota resets.</string>
+    <string name="youtube_setup_busy">Setup is already running for this channel. Wait and retry.</string>
+    <string name="youtube_setup_in_use">The key is busy or bound to another event. Wait for the previous broadcast to end, or check and end the event in YouTube Studio.</string>
+    <string name="youtube_setup_finished">The configured key was removed on YouTube. Check the channel in Studio.</string>
+    <string name="youtube_setup_reconcile">Creation is not confirmed yet. Wait and retry: we will look for the same setup without creating duplicates. Contact support if it persists.</string>
+    <string name="youtube_setup_invalid">The event settings have changed. Check visibility and automatic start/stop in YouTube Studio.</string>
+    <string name="youtube_destination_intro">Choose an RTMP key to reuse for your matches.</string>
+    <string name="youtube_existing_title">Use an existing key</string>
+    <string name="youtube_existing_description">Import a key already configured on your channel.</string>
+    <string name="youtube_new_description">Create a reusable key in the app. Set broadcast visibility in YouTube Studio.</string>
+    <string name="youtube_automatic_finished">This match broadcast has ended. Create a new match to start another event.</string>
+    <string name="youtube_automatic_missing">Automatic match unavailable. Return to the match list and check your account.</string>
+    <string name="youtube_automatic_preparing">Preparing broadcast…</string>
+    <string name="youtube_automatic_start_hint">Automatic mode: Start prepares a public event. Stop ends it on YouTube after about a minute.</string>
+    <string name="youtube_mode_automatic">YouTube · Automatic</string>
+    <string name="youtube_mode_direct">YouTube · Direct connection</string>
+    <string name="youtube_direct_guide">For direct connection: 1. Open Studio and select Stream. 2. Prepare the stream and select Public. 3. Return here and import the key using Direct connection. Test two successive broadcasts before relying on reused settings.</string>
+</resources>

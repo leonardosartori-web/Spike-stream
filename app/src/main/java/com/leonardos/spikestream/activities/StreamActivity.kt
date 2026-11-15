@@ -1,14 +1,22 @@
 package com.leonardos.spikestream.activities
 
+import com.leonardos.spikestream.ui.components.ManagedYouTubeControls
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import androidx.activity.compose.BackHandler
+import com.leonardos.spikestream.data.BroadcastReport
+import com.leonardos.spikestream.ui.components.BroadcastFeedbackDialog
 import android.media.MediaCodec
 import android.view.SurfaceHolder
 import android.widget.Toast
@@ -44,11 +52,12 @@ import com.pedro.encoder.utils.CodecUtil
 import com.pedro.encoder.input.video.CameraCallbacks
 import com.pedro.encoder.input.video.CameraHelper
 import com.pedro.encoder.utils.gl.TranslateTo
-import com.pedro.library.rtmp.RtmpCamera2
+import com.leonardos.spikestream.streaming.AdaptiveRtmpCamera
 import com.pedro.library.view.GlStreamInterface
 import com.pedro.library.view.OpenGlView
 import com.leonardos.spikestream.ui.components.DefaultOverlayStyle
 import com.leonardos.spikestream.R
+import kotlinx.coroutines.launch
 import com.leonardos.spikestream.utils.getHttpClient
 import com.leonardos.spikestream.streaming.StreamBitrateMonitor
 import com.leonardos.spikestream.streaming.StreamBrightnessManager
@@ -70,7 +79,37 @@ import androidx.compose.foundation.shape.RoundedCornerShape
  */
 class StreamActivity : ComponentActivity(), ConnectChecker {
 
-    private lateinit var rtmpCamera: RtmpCamera2
+    private var rtmpReadySince = Long.MAX_VALUE
+    private var replayAuthorized = false
+    private var selectedReplayTeam by mutableStateOf<String?>(null)
+    private var replayFailed by mutableStateOf(false)
+    private var replayFilter: com.leonardos.spikestream.streaming.ReplayFilter? = null
+
+    private fun attachReplay() {
+        if (streamTelemetry.status != BroadcastStatus.LIVE || streamTelemetry.health == StreamHealth.CRITICAL) return
+        if (!replayAuthorized || replayFilter != null || selectedReplayTeam == null || replayFailed) return
+        lateinit var filter: com.leonardos.spikestream.streaming.ReplayFilter
+        filter = com.leonardos.spikestream.streaming.ReplayFilter(translatePosition == TranslateTo.TOP_RIGHT) { active, failed ->
+            if (replayFilter === filter) {
+                if (failed) {
+                    replayFailed = true
+                    detachReplay()
+                    Toast.makeText(this,R.string.automatic_replay_unavailable,Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        replayFilter = filter
+        desk.replayAttached = true
+        rtmpCamera.glInterface.addFilter(0, filter)
+    }
+
+    private fun detachReplay() {
+        replayFilter?.let { rtmpCamera.glInterface.removeFilter(it) }
+        replayFilter = null
+        if (::desk.isInitialized) desk.replayAttached = false
+    }
+
+    private lateinit var rtmpCamera: AdaptiveRtmpCamera
     private lateinit var openGlView: OpenGlView
 
     // Modular managers handling specific functionalities
@@ -78,6 +117,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
     private lateinit var networkManager: StreamNetworkManager
     private lateinit var bitrateMonitor: StreamBitrateMonitor
     private lateinit var overlayController: StreamOverlayController
+    private lateinit var desk: com.leonardos.spikestream.streaming.ProductionDesk
     private lateinit var socketManager: StreamSocketManager
     private lateinit var tokenManager: TokenManager
 
@@ -92,7 +132,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
     private var streamTelemetry by mutableStateOf(StreamTelemetry())
     private var activeProfile by mutableStateOf<StreamProfile?>(null)
     private var activeCameraId: String = "0"
-    private var preparedCamera: RtmpCamera2? = null
+    private var preparedCamera: AdaptiveRtmpCamera? = null
     private var preparedQualityMode: StreamQualityMode? = null
     private var preparedIsPortrait: Boolean? = null
     private var usingOffscreenRenderer = false
@@ -100,12 +140,22 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
     private var cameraGeneration = 0L
     private var activityVisible = false
     private var closing = false
+    private var activeReport: BroadcastReport? = null
+    private var reportStartedElapsed = 0L
+    private var connectionCount = 0
+    private var pendingReport by mutableStateOf<BroadcastReport?>(null)
+    private var showFeedback by mutableStateOf(false)
+    private var exitAfterFeedback = false
     private var lastQualityMode = StreamQualityMode.AUTO
     private var lastNotificationUpdateAtMs = 0L
     private var lastNotificationStatus: BroadcastStatus? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        pendingReport = savedInstanceState?.getSerializable("pendingReport") as? BroadcastReport
+        showFeedback = savedInstanceState?.getBoolean("showFeedback") == true
+        exitAfterFeedback = savedInstanceState?.getBoolean("exitAfterFeedback") == true
         enableEdgeToEdge()
 
         // Read intent data passed from configuration panel
@@ -159,6 +209,11 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             },
             onTelemetry = {
                 streamTelemetry = it
+                if (isStreamingState && replayAuthorized) {
+                    if (it.status == BroadcastStatus.LIVE && it.health != StreamHealth.CRITICAL) attachReplay()
+                    else if (replayFilter != null) detachReplay()
+                }
+                if (::socketManager.isInitialized) socketManager.updateTelemetry(it)
                 if (isStreamingState &&
                     it.sessionStartedAtMs > 0L &&
                     it.status != BroadcastStatus.IDLE
@@ -167,13 +222,47 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                 }
             },
             onFatalError = { reason -> handleFatalStreamError(reason) },
+            onConnected = { connectionCount++ },
         )
         bitrateMonitor.startObserving()
 
+        desk = com.leonardos.spikestream.streaming.ProductionDesk(this, overlayController::setVisible,
+            overlayController::confirmFrame) {
+            if (::socketManager.isInitialized) socketManager.publishProduction(it)
+        }
         socketManager = StreamSocketManager(
             context = applicationContext,
             matchId = id_match,
             client = getHttpClient(),
+            onProductionCommand = {
+                desk.command(it)
+                if (desk.spotActive) replayFilter?.stopReplay()
+            },
+            replayTeam = { selectedReplayTeam.takeIf { isStreamingState && !replayFailed } },
+            onReplayStopped = { replayFilter?.stopReplay() },
+            onReplayAuthorized = {
+                replayAuthorized = true
+                if (isStreamingState) attachReplay()
+            },
+            onReplayDenied = {
+                replayAuthorized = false
+                selectedReplayTeam = null
+                detachReplay()
+            },
+            onReplay = { actionId, received, deadline ->
+                if (!desk.spotActive && streamTelemetry.status == BroadcastStatus.LIVE &&
+                    received / 1000 - rtmpReadySince >= 5000) replayFilter?.trigger(actionId,received,deadline)
+            },
+            onProductionConnect = desk::changed,
+            onConfig = {
+                val team = it.optString("replayTeam").takeIf { value -> value in setOf("A","B","*") }
+                if (team != selectedReplayTeam) {
+                    replayAuthorized = false
+                    detachReplay()
+                    selectedReplayTeam = team
+                }
+                desk.receiveConfig(it)
+            },
             onScoreUpdated = { team1Pts, team2Pts, team1Sets, team2Sets ->
                 currentTeam1Pts = team1Pts
                 currentTeam2Pts = team2Pts
@@ -208,13 +297,39 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         val activity = ctx as Activity
         val configuration = LocalConfiguration.current
         val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-
+        val youtubeManaged = remember { intent.getBooleanExtra("YOUTUBE_MANAGED", false) }
+        var managedControlsHeight by remember { mutableIntStateOf(0) }
+        val managedControlsPadding = with(LocalDensity.current) { managedControlsHeight.toDp() } + 16.dp
         var servingTeam by remember { mutableIntStateOf(0) }
         var overlayStyle by remember { mutableStateOf("classic") }
+        BackHandler(enabled = !showFeedback && (isStreamingState || pendingReport != null)) {
+            exitAfterFeedback = true
+            if (isStreamingState) stopLiveSession(restorePreview = false)
+            if (pendingReport != null) showFeedback = true else finish()
+        }
+        pendingReport?.takeIf { showFeedback }?.let { report ->
+            BroadcastFeedbackDialog(report.sessionId) { rating, description ->
+                if (rating != null) {
+                    val queued = report.enqueue(applicationContext, rating, description).result
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { queued.get() }
+                }
+                pendingReport = null
+                showFeedback = false
+                if (rating == "problem") {
+                    Toast.makeText(applicationContext, R.string.feedback_saved, Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@StreamActivity, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    })
+                    finish()
+                } else if (exitAfterFeedback) {
+                    finish()
+                }
+                exitAfterFeedback = false
+            }
+        }
         var selectedQualityMode by rememberSaveable {
             mutableStateOf(StreamQualityMode.AUTO)
         }
-
         // A live encoder cannot change rotation without a restart. Lock only for
         // the duration of the broadcast so an accidental device turn never drops it.
         LaunchedEffect(isStreamingState) {
@@ -287,22 +402,6 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                 }
             }
         }
-
-        // Forza keyframe periodici ogni 2s: fix per encoder hardware (Android < S) che ignorano
-        // KEY_I_FRAME_INTERVAL causando GOP da ~11s. Su Android S+ prepareVideoModern già
-        // garantisce GOP corretto — il forcing sarebbe ridondante e aumenterebbe il bitrate.
-        /*if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            LaunchedEffect(isStreamingState) {
-                if (isStreamingState) {
-                    while (true) {
-                        kotlinx.coroutines.delay(2_000L)
-                        if (::rtmpCamera.isInitialized && rtmpCamera.isStreaming) {
-                            rtmpCamera.requestKeyFrame()
-                        }
-                    }
-                }
-            }
-        }*/
 
         // Layout composition
         Box(Modifier.fillMaxSize()) {
@@ -380,6 +479,11 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                     .fillMaxSize()
                     .safeDrawingPadding()
             ) {
+                if (!isStreamingState && pendingReport?.outcome == "error" && !showFeedback) {
+                    Button(onClick = { showFeedback = true }, modifier = Modifier.align(Alignment.TopCenter)) {
+                        Text(stringResource(R.string.feedback_finish_attempt))
+                    }
+                }
                 if (isStreamingState) {
                     StreamTelemetryPanel(
                         telemetry = streamTelemetry,
@@ -390,8 +494,8 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                 }
 
                 if (isStreamingState) {
-                    SpikeStreamDangerButton(
-                        text = stringResource(R.string.stop_stream),
+                    if (!youtubeManaged) SpikeStreamDangerButton(
+                        text = stringResource(R.string.youtube_pause_video),
                         onClick = { stopLiveSession(restorePreview = true) },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
@@ -428,20 +532,28 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(horizontal = 12.dp)
-                            .padding(bottom = 82.dp),
+                            .padding(bottom = if (youtubeManaged) managedControlsPadding else 82.dp),
                     )
 
-                    SpikeStreamPrimaryButton(
+                    if (!youtubeManaged) SpikeStreamPrimaryButton(
                         text = stringResource(R.string.launch_stream),
-                        onClick = {
-                            startLiveSession(streamUrl, isPortrait, selectedQualityMode)
-                        },
+                        onClick = { startLiveSession(streamUrl, isPortrait, selectedQualityMode) },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(16.dp)
                             .widthIn(min = 200.dp)
                     )
                 }
+                if (youtubeManaged) ManagedYouTubeControls(
+                    matchId = matchId, streaming = isStreamingState,
+                    appToken = { tokenManager.currentToken },
+                    canStart = { activityVisible && !closing && hasPermissions(ctx) },
+                    onStart = { url -> if (activityVisible && !closing && !isFinishing && !isStreamingState) startLiveSession(url, isPortrait, selectedQualityMode) },
+                    onPause = { stopLiveSession(restorePreview = true, prompt = false) },
+                    onClosed = { showFeedback = pendingReport != null },
+                    initialBroadcastId = intent.getStringExtra("YOUTUBE_BROADCAST_ID"),
+                    modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { managedControlsHeight = it.height }.fillMaxWidth()
+                )
             }
         }
     }
@@ -500,7 +612,9 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         ) ?: return null
 
         val audioPrepared = runCatching {
-            rtmpCamera.prepareAudio(128 * 1024, 48000, true)
+            // SponsorAudio supplies 48 kHz stereo PCM; keep the capture/encoder
+            // clock identical so inserting an ad cannot change speed or A/V sync.
+            rtmpCamera.prepareAudio(128_000, 48000, true)
         }.getOrElse {
             Log.e("Stream", "Preparazione microfono/AAC non riuscita", it)
             false
@@ -530,6 +644,10 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
     }
 
     private fun releaseCurrentCamera() {
+        rtmpReadySince = Long.MAX_VALUE
+        replayAuthorized = false
+        detachReplay()
+        if (::desk.isInitialized) { desk.setLive(false); desk.detach() }
         if (!::rtmpCamera.isInitialized || cameraReleased) return
         cameraReleased = true
         cameraGeneration++ // Discard callbacks already queued by the previous instance.
@@ -564,7 +682,9 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             override fun onAuthError() = dispatchCameraEvent(generation) { this@StreamActivity.onAuthError() }
             override fun onAuthSuccess() = dispatchCameraEvent(generation) { this@StreamActivity.onAuthSuccess() }
         }
-        rtmpCamera = RtmpCamera2(view, checker)
+        rtmpCamera = AdaptiveRtmpCamera(view, checker)
+        rtmpCamera.setVideoCodec(com.pedro.common.VideoCodec.H264)
+        rtmpCamera.setAudioCodec(com.pedro.common.AudioCodec.AAC)
         cameraReleased = false
         rtmpCamera.setFpsListener { fps ->
             dispatchCameraEvent(generation) { bitrateMonitor.onFps(fps) }
@@ -708,6 +828,14 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                 )
 
                 Text(
+                    text = "Encoder video %.1f Mbps • audio %d kbps".format(
+                        telemetry.encodedVideoBitrate / 1_000_000.0,
+                        telemetry.encodedAudioBitrate / 1_000),
+                    color = Color.White.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+
+                Text(
                     text = buildString {
                         append("${telemetry.profileName}  •  $networkLabel")
                         if (telemetry.droppedFrames > 0) {
@@ -715,6 +843,9 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                         }
                         if (telemetry.queueCapacity > 0) {
                             append("  •  coda ${telemetry.queueItems}/${telemetry.queueCapacity}")
+                        }
+                        if (telemetry.recoveryDroppedFrames > 0) {
+                            append("  •  risinc. ${telemetry.recoveryDroppedFrames}")
                         }
                     },
                     color = Color.White.copy(alpha = 0.72f),
@@ -747,11 +878,11 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         )
         val description = when (selectedMode) {
             StreamQualityMode.AUTO ->
-                "Consigliato nelle palestre: stabilità prima della risoluzione"
+                "480p con bitrate adattivo alla connessione"
             StreamQualityMode.STABLE_480 ->
-                "Massima continuità su Wi-Fi, 4G e 5G"
+                "480p per ridurre il consumo di banda"
             StreamQualityMode.HD_720 ->
-                "Per connessioni con upload realmente stabile"
+                "720p con recupero graduale della qualità"
         }
 
         Card(
@@ -820,8 +951,15 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             return
         }
 
+        pendingReport = null
+        showFeedback = false
+        connectionCount = 0
+        reportStartedElapsed = SystemClock.elapsedRealtime()
+        activeReport = BroadcastReport.create(tokenManager.currentToken, intent.getStringExtra("MATCH_ID").orEmpty())
+        activeReport?.enqueue(applicationContext)
         val snapshot = networkManager.currentSnapshot()
         if (!snapshot.hasUsableInternet) {
+            completeReport("error", prompt = false)
             Toast.makeText(
                 this,
                 "Nessuna connessione Internet validata",
@@ -835,6 +973,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             ?: prepareEncoders(qualityMode, isPortrait)
 
         if (preparedProfile == null) {
+            completeReport("error", prompt = false)
             releaseCurrentCamera()
             Toast.makeText(
                 this,
@@ -867,17 +1006,35 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             )
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
             isStreamingState = true
+            replayFailed = false
+            replayAuthorized = false
+            desk.attach(rtmpCamera, width, height)
             rtmpCamera.startStream(streamUrl)
+            desk.setLive(true)
         }.onSuccess {
             if (isStreamingState) brightnessManager.setDimmed(true)
         }.onFailure {
             Log.e("Stream", "Avvio RTMP non riuscito", it)
-            stopLiveSession(restorePreview = true)
+            stopLiveSession(restorePreview = true, outcome = "error", prompt = false)
             Toast.makeText(this, "Impossibile avviare la diretta", Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun stopLiveSession(restorePreview: Boolean) {
+    private fun completeReport(outcome: String, prompt: Boolean) {
+        val report = activeReport ?: return
+        activeReport = null
+        val completed = report.copy(
+            outcome = outcome,
+            durationSeconds = (SystemClock.elapsedRealtime() - reportStartedElapsed) / 1000,
+            reconnections = (connectionCount - 1).coerceAtLeast(0),
+        )
+        completed.enqueue(applicationContext)
+        pendingReport = completed
+        showFeedback = prompt
+    }
+
+    private fun stopLiveSession(restorePreview: Boolean, outcome: String = "stopped", prompt: Boolean = true) {
+        completeReport(outcome, prompt)
         bitrateMonitor.endSession()
         releaseCurrentCamera()
         StreamForegroundService.stop(this)
@@ -894,6 +1051,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
     private fun handleFatalStreamError(reason: String) {
         runOnUiThread {
             if (closing) return@runOnUiThread
+            completeReport("error", prompt = false)
             releaseCurrentCamera()
             StreamForegroundService.stop(this)
             isStreamingState = false
@@ -925,7 +1083,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             lastNotificationUpdateAtMs = now
             lastNotificationStatus = telemetry.status
         }.onFailure {
-            Log.w("Stream", "Aggiornamento notifica LIVE non riuscito: ${it.message}")
+            Log.w("Stream", "Aggiornamento notifica LIVE non riuscito")
         }
     }
 
@@ -957,6 +1115,8 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         runCatching {
             // OpenGlView belongs to the Activity and its Surface can disappear in
             // background. RootEncoder's context renderer owns an offscreen EGL surface.
+            detachReplay()
+            desk.detach(transfer = true)
             rtmpCamera.replaceView(applicationContext)
             // The encoder input is portrait when rotation=90, but the published
             // canvas is deliberately landscape 16:9. GlStreamInterface otherwise
@@ -964,6 +1124,8 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
             (rtmpCamera.glInterface as? GlStreamInterface)
                 ?.setStreamIsPortrait(false)
             applyOverlayToCurrentRenderer()
+            attachReplay()
+            activeProfile?.let { desk.attach(rtmpCamera,it.outputWidth,it.outputHeight) }
             usingOffscreenRenderer = true
         }.onFailure {
             Log.e("Stream", "Passaggio al renderer OpenGL offscreen non riuscito", it)
@@ -984,8 +1146,12 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
                 !rtmpCamera.isStreaming || !usingOffscreenRenderer
             ) return@post
             runCatching {
+                detachReplay()
+                desk.detach(transfer = true)
                 rtmpCamera.replaceView(openGlView)
                 applyOverlayToCurrentRenderer()
+                attachReplay()
+                activeProfile?.let { desk.attach(rtmpCamera,it.outputWidth,it.outputHeight) }
                 usingOffscreenRenderer = false
             }.onFailure {
                 Log.e("Stream", "Ripristino preview OpenGL non riuscito", it)
@@ -1010,12 +1176,20 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         super.onStop()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putSerializable("pendingReport", pendingReport)
+        outState.putBoolean("showFeedback", showFeedback)
+        outState.putBoolean("exitAfterFeedback", exitAfterFeedback)
+    }
+
     override fun onDestroy() {
         closing = true
         activityVisible = false
         if (isStreamingState) {
-            stopLiveSession(restorePreview = false)
+            stopLiveSession(restorePreview = false, outcome = "interrupted", prompt = false)
         } else releaseCurrentCamera()
+        desk.close()
         bitrateMonitor.stopObserving()
         socketManager.disconnect()
         brightnessManager.restore()
@@ -1030,11 +1204,13 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
 
     override fun onConnectionSuccess() {
         Log.i("Stream", "Connessione RTMP stabilita")
+        rtmpReadySince = SystemClock.elapsedRealtime()
         bitrateMonitor.onConnectionSuccess()
     }
 
     override fun onConnectionFailed(reason: String) {
-        Log.e("Stream", "Connessione RTMP fallita: $reason")
+        Log.e("Stream", "Connessione RTMP fallita")
+        replayFilter?.stopReplay()
         bitrateMonitor.onConnectionFailed(reason)
     }
 
@@ -1044,6 +1220,7 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
 
     override fun onDisconnect() {
         Log.w("Stream", "RTMP disconnesso")
+        replayFilter?.stopReplay()
         bitrateMonitor.onDisconnect()
     }
 

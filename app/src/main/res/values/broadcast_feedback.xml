@@ -1,0 +1,12 @@
+<resources>
+    <string name="feedback_question">How did the broadcast go?</string>
+    <string name="feedback_ok">Everything went well</string>
+    <string name="feedback_problem">There were problems</string>
+    <string name="feedback_skip">Skip</string>
+    <string name="feedback_description">What happened?</string>
+    <string name="feedback_hint">If you remember when it happened, mention it here.</string>
+    <string name="feedback_send">Send</string>
+    <string name="feedback_finish_attempt">Finish attempt</string>
+    <string name="feedback_save_failed">Could not save feedback on this device. Try again.</string>
+    <string name="feedback_saved">Feedback saved. Thank you!</string>
+</resources>

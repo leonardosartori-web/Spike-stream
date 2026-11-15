@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "title": "Aide et FAQ",
+  "introduction": "Suivez ces étapes pour préparer un match, passer en direct et tenir le score. Choisissez une question ou recherchez ce que vous voulez faire.",
+  "articles": [
+    {
+      "id": "start",
+      "title": "Comment fonctionne SpikeStream ?",
+      "body": "SpikeStream vous permet de montrer un match en direct avec le score sur la vidéo.\n\nUn téléphone filme le terrain. Une autre personne peut modifier points et sets depuis son téléphone. Les spectateurs regardent sur YouTube, Facebook ou le service choisi.\n\nPour commencer :\n1. Connectez-vous à l’application.\n2. Touchez + et créez un match.\n3. Choisissez où le diffuser.\n4. Ouvrez le match, préparez le cadrage et invitez le marqueur.\n5. Lancez le direct quand tout le monde est prêt.\n\nVous pouvez préparer le match à l’avance : le créer ne démarre pas le direct."
+    },
+    {
+      "id": "match",
+      "title": "Comment créer un match ?",
+      "body": "Saisissez les équipes et choisissez une destination, y compris récente. Créer un match ne crée aucun événement YouTube. Les réglages de destination sont copiés dans le match ; les changements ultérieurs ne modifient pas les matchs enregistrés."
+    },
+    {
+      "id": "youtube-setup",
+      "title": "YouTube · Que faire la première fois ?",
+      "body": "Seules vos clés configurées dans YouTube Studio sont proposées ici. La clé réservée à SpikeStream est exclue. Vérifiez la visibilité de l’événement dans Studio avant de diffuser.\n\nLa clé SpikeStream est réservée à la gestion automatique et ne figure pas parmi les clés Studio. Elle permet à SpikeStream de préparer un événement public pour chaque match diffusé.\n\nSpikeStream crée ou récupère sa clé réservée. Au démarrage du streaming, il prépare automatiquement un événement public pour ce match. Une autorisation Google peut être demandée."
+    },
+    {
+      "id": "youtube-connect",
+      "title": "YouTube · Comment le connecter à SpikeStream ?",
+      "body": "Les réglages appartiennent à chaque destination, sans lier votre profil SpikeStream à un compte Google unique. Vous pouvez utiliser plusieurs chaînes. Les destinations récentes conservent mode, clé et public. Le serveur ne conserve pas les jetons Google ; une autorisation peut être demandée pour préparer ou terminer un événement."
+    },
+    {
+      "id": "youtube-public",
+      "title": "YouTube · Comment permettre à tous de regarder ?",
+      "body": "La clé ne possède pas de visibilité. Avec la gestion SpikeStream, Démarrer crée ou récupère l’événement public du match sur la même clé. Si YouTube refuse la visibilité publique, le démarrage est bloqué. Un événement modifié dans Studio ne sera pas republié automatiquement.\n\nEn transmission directe, vérifiez vous-même événement et visibilité Publique dans Studio."
+    },
+    {
+      "id": "youtube-live",
+      "title": "YouTube · Quand suis-je vraiment en direct ?",
+      "body": "Interrompre le streaming termine aussi l’événement YouTube après confirmation. Une perte de connexion ne le termine pas.\n\nPour les événements préparés par SpikeStream, Interrompre le streaming termine aussi l’événement YouTube après confirmation. En cas d’échec, réessayez ici ou dans l’écran de diffusion. Supprimer le match ne supprime pas les vidéos YouTube.\n\nPour les destinations configurées dans Studio, interrompre le streaming arrête uniquement le son et la vidéo. Terminez l’événement dans YouTube Studio."
+    },
+    {
+      "id": "facebook",
+      "title": "Facebook · Comment diffuser le match ?",
+      "body": "1. Lors de la création du match dans SpikeStream, touchez Facebook.\n2. Connectez-vous avec le compte qui gère le profil ou la Page à utiliser.\n3. Accordez les autorisations demandées et choisissez l’entrée souhaitée parmi celles disponibles.\n4. Créez le match et préparez la caméra.\n5. Avant de commencer, vérifiez sur Facebook où la vidéo apparaîtra et qui pourra la voir.\n6. Démarrez depuis SpikeStream et vérifiez la vidéo sur Facebook. Si Facebook demande une confirmation supplémentaire pour passer en direct, suivez les étapes affichées.\n\nSi votre Page n’apparaît pas, vérifiez le compte choisi et votre accès à ses directs. Les options dépendent de votre compte Facebook.\n\nFaites un essai avant le match et vérifiez que la vidéo n’est plus en direct à la fin."
+    },
+    {
+      "id": "twitch",
+      "title": "Twitch · Puis-je l’utiliser avec SpikeStream ?",
+      "body": "Oui, avec le champ permettant de saisir une adresse de diffusion. L’application ne propose pas de bouton pour connecter directement Twitch.\n\n1. Préparez le titre et la catégorie du direct dans le tableau de bord de votre chaîne Twitch.\n2. Procurez-vous l’adresse complète à utiliser pour diffuser. Si le club ou une autre personne gère la chaîne, demandez-lui de la préparer.\n3. Créez un match dans SpikeStream et collez cette adresse dans le champ URL RTMP.\n4. Ouvrez le match, lancez le direct et vérifiez votre chaîne Twitch depuis un autre téléphone.\n\nNe saisissez pas dans ce champ le lien habituel de la chaîne envoyé aux spectateurs.\n\nSi vous n’avez pas l’adresse complète, préparez-la avec la personne qui gère la chaîne avant le jour du match."
+    },
+    {
+      "id": "manual",
+      "title": "Comment utiliser une adresse qu’on m’a donnée ?",
+      "body": "Si le club ou la personne qui gère la chaîne vous a donné une adresse complète pour diffuser :\n\n1. Copiez-la en entier.\n2. Lors de la création du match dans SpikeStream, collez-la dans le champ URL RTMP.\n3. Terminez la création et faites un court essai.\n4. Demandez à quelqu’un de vérifier la vidéo sur la chaîne choisie.\n\nNe saisissez pas le lien utilisé pour regarder le match : c’est une autre adresse.\n\nSi le champ affiche une erreur, demandez à la personne qui l’a fournie de vérifier qu’elle est complète et encore valide. Ne modifiez pas lettres, chiffres ou symboles au hasard.\n\nPour YouTube et Facebook, vous pouvez utiliser les boutons dédiés de l’application."
+    },
+    {
+      "id": "scorer",
+      "title": "Comment confier le score à une autre personne ?",
+      "body": "1. Ouvrez le match dans SpikeStream.\n2. Appuyez sur le bouton pour générer le lien d’invitation du marqueur.\n3. Envoyez le lien à la personne chargée du score ou faites-lui scanner le QR.\n4. Elle ouvre la page sur son téléphone et y modifie points et sets.\n\nLe marqueur doit simplement ouvrir le lien : il n’a pas besoin d’installer SpikeStream. Les deux téléphones doivent avoir Internet.\n\nAvant le match, testez une modification et vérifiez que le score change sur la vidéo, puis rétablissez le bon résultat.\n\nEnvoyez ce lien uniquement au marqueur. Pour les spectateurs, utilisez le lien vidéo."
+    },
+    {
+      "id": "overlay",
+      "title": "Comment régler le cadrage et le tableau de score ?",
+      "body": "Ouvrez le match et choisissez la caméra à utiliser. Réglez les couleurs et la position du tableau de score, puis ouvrez l’aperçu.\n\nVérifiez que :\n• tout le terrain est bien visible ;\n• les noms des équipes sont lisibles ;\n• le tableau ne masque pas le jeu ;\n• le téléphone est sur un support stable.\n\nSi l’application demande l’accès à la caméra et au microphone, autorisez-le pour filmer l’image et le son.\n\nVous pouvez tout vérifier avant le direct : voir l’aperçu dans l’application ne signifie pas que les spectateurs vous regardent déjà."
+    },
+    {
+      "id": "quality",
+      "title": "Quelle qualité choisir ?",
+      "body": "Commencez par Auto dans l’écran de streaming.\n\nSi la vidéo se bloque souvent ou si la connexion est faible, essayez 480p : l’image sera moins détaillée, mais la diffusion peut être plus facile sans interruptions. Utilisez 720p si la connexion fonctionne bien.\n\nFaites un essai depuis l’endroit où vous filmerez dans la salle, pas seulement depuis chez vous. La connexion peut changer avec l’arrivée du public.\n\nChargez le téléphone avant le match et vérifiez qu’il ne chauffe pas trop pendant la prise de vue."
+    },
+    {
+      "id": "checklist",
+      "title": "Que vérifier avant de commencer ?",
+      "body": "Vérifiez équipes, cadrage, score, marqueur, batterie et réseau. Lisez le résumé de destination : événement préparé au démarrage ou visibilité gérée dans Studio. Ne partagez pas une clé entre matchs simultanés. Vérifiez toujours le lien spectateur après démarrage."
+    },
+    {
+      "id": "delete-match",
+      "title": "Le match est fini : comment l’arrêter et le supprimer ?",
+      "body": "Interrompre le streaming termine aussi l’événement YouTube après confirmation. Une perte de connexion ne le termine pas.\n\nPour les événements préparés par SpikeStream, Interrompre le streaming termine aussi l’événement YouTube après confirmation. En cas d’échec, réessayez ici ou dans l’écran de diffusion. Supprimer le match ne supprime pas les vidéos YouTube.\n\nPour les destinations configurées dans Studio, interrompre le streaming arrête uniquement le son et la vidéo. Terminez l’événement dans YouTube Studio."
+    },
+    {
+      "id": "replay",
+      "title": "Où revoir le match ?",
+      "body": "Cherchez la vidéo sur la chaîne ou la Page où vous avez diffusé. La possibilité de la revoir dépend du service utilisé et des paramètres du direct.\n\nQuand vous trouvez l’enregistrement, copiez le lien de cette vidéo pour l’envoyer aux autres. Le lien général de la chaîne pourrait mener à un autre match.\n\nUn match enregistré dans SpikeStream n’est pas un enregistrement vidéo. Vous pouvez le supprimer de l’application sans supprimer la vidéo de la chaîne.\n\nSi vous voulez conserver les images, vérifiez les possibilités de sauvegarde proposées par le service utilisé."
+    },
+    {
+      "id": "no-video",
+      "title": "Les autres ne voient pas le match : que vérifier ?",
+      "body": "Vérifiez Internet et la destination. En gestion SpikeStream, lisez l’erreur de préparation : mauvaise chaîne, clé occupée ou événement modifié doivent être corrigés. Créez un nouveau match si l’événement est terminé. En connexion directe, vérifiez événement, clé et visibilité dans Studio. Envoyez le lien vidéo aux spectateurs, pas celui du marqueur."
+    },
+    {
+      "id": "connection",
+      "title": "Je n’arrive pas à connecter la chaîne ou le direct s’arrête",
+      "body": "Si vous ne trouvez pas votre chaîne :\n• réessayez avec le bon compte ;\n• accordez les autorisations demandées ;\n• pour YouTube, terminez d’abord l’activation des directs ;\n• pour une Page Facebook, vérifiez que vous pouvez la gérer.\n\nSi vous devez vous reconnecter, refaites la connexion. Si le service demande d’attendre, patientez avant de réessayer.\n\nSi le direct s’interrompt, vérifiez Internet, essayez la qualité 480p et contrôlez que le téléphone ne chauffe pas trop.\n\nAprès la reprise, demandez à un spectateur de confirmer que la vidéo est de nouveau visible."
+    },
+    {
+      "id": "score-troubleshooting",
+      "title": "Le score ne change pas : que faire ?",
+      "body": "1. Vérifiez que le marqueur a ouvert le lien du match en cours.\n2. Vérifiez que les deux téléphones ont Internet.\n3. Demandez au marqueur de rouvrir le lien.\n4. Regardez d’abord le tableau de score dans l’application : la vidéo des spectateurs peut arriver quelques secondes plus tard.\n\nSi vous avez créé un nouveau match, envoyez son nouveau lien. Le lien du match précédent ne modifie pas le nouveau.\n\nSi le match a été supprimé, créez-en un autre et partagez son invitation."
+    },
+    {
+      "id": "links",
+      "title": "Quel lien envoyer aux spectateurs ?",
+      "body": "Envoyez aux spectateurs le lien vidéo sur YouTube, Facebook ou le service choisi.\n\nEnvoyez au marqueur le lien d’invitation ou le QR généré par SpikeStream. La personne qui reçoit cette invitation peut modifier points et sets : ne la publiez pas dans le groupe des spectateurs.\n\nL’adresse collée pour connecter la chaîne sert uniquement à diffuser : ne l’envoyez pas aux spectateurs et ne la montrez pas dans des captures d’écran.\n\nAvant le match, demandez à quelqu’un d’ouvrir le lien vidéo et de vérifier qu’il fonctionne."
+    },
+    {
+      "id": "help",
+      "title": "Comment trouver une réponse ou actualiser le guide ?",
+      "body": "Recherchez ce que vous voulez faire, par exemple « YouTube », « score » ou « supprimer ». Touchez une question pour lire les étapes.\n\nVous pouvez lire ce guide sans Internet. Une fois connecté, appuyez sur Actualiser pour rechercher de nouvelles instructions.\n\nLa version de SpikeStream installée figure en bas de l’écran. Ici, Actualiser ne met à jour que le guide ; pour l’application, utilisez la boutique ou le canal depuis lequel vous l’avez installée."
+    },
+    {
+      "id": "youtube-access",
+      "title": "YouTube · Qui peut faire créer les événements par SpikeStream ?",
+      "body": "La création des événements correspond à YouTube avec SpikeStream et suit la limite de votre offre ou de votre compte. Une limite de 0 bloque la fonction ; aucune autorisation supplémentaire ne est nécessaire. Free est par défaut et sans expiration. À expiration de Plus ou Ultra, les limites Free remplacent les exceptions précédentes. Les événements existants restent récupérables et peuvent être conclus."
+    },
+    {
+      "id": "account-plans",
+      "title": "Offres · Comment fonctionnent les limites ?",
+      "body": "Free, Plus et Ultra limitent les matchs enregistrés, au total et pour YouTube avec SpikeStream, YouTube Studio, Facebook et RTMP personnalisé. Supprimer un match libère une place ; démarrages et reconnexions ne consomment pas de places supplémentaires. Les limites initiales sont 10, 100 et 200 et votre administrateur peut les adapter. À expiration, les limites Free remplacent les exceptions personnelles, sans supprimer les matchs ni interrompre les directs. Free est sans expiration. Les événements suivent la limite YouTube avec SpikeStream. Le cadenas ouvre Offres et autorisations. Actualiser les accès permet de vérifier une modification récente."
+    }
+  ]
+}

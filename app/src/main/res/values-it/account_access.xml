@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="account_refresh">Aggiorna accesso</string>
+<string name="account_refresh_failed">Non è stato possibile verificare il tuo accesso. Riprova prima di creare la partita.</string>
+<string name="account_locked">🔒 Questa destinazione non è disponibile per il tuo account oppure hai raggiunto il limite di partite salvate.</string>
+<string name="account_plans">Piani e abilitazioni</string>
+<string name="account_limit_reached">Hai raggiunto il limite di partite salvate per questa destinazione o per il tuo account. Elimina una partita per liberare un posto oppure verifica il piano.</string>
+<string name="account_saved_match_locked">Accesso ai nuovi eventi YouTube assente o scaduto. Verifica il piano oppure crea una partita con una destinazione preparata in YouTube Studio. Questa partita non verrà convertita automaticamente.</string>
+</resources>

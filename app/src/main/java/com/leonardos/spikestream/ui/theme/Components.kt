@@ -33,8 +33,8 @@ val AppGradient
     @Composable
     get() = Brush.verticalGradient(
         colors = listOf(
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+            MaterialTheme.colorScheme.primaryContainer.mix(MaterialTheme.colorScheme.background, 0.35f),
+            MaterialTheme.colorScheme.background,
             MaterialTheme.colorScheme.background
         )
     )
@@ -58,7 +58,7 @@ fun SpikeStreamScreen(
     applySafeInsets: Boolean = true,
     content: @Composable BoxScope.() -> Unit
 ) {
-    MyApplicationTheme {
+    RefinedApplicationTheme {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -96,20 +96,21 @@ fun SpikeStreamGlassCard(
     Card(
         modifier = modifier
             .shadow(
-                elevation = 12.dp,
+                elevation = 2.dp,
                 shape = RoundedCornerShape(24.dp),
-                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                spotColor = Color.Black.copy(alpha = 0.08f)
             )
+            .clip(RoundedCornerShape(24.dp))
             .then(clickableModifier),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(20.dp)
                 .fillMaxWidth(),
             content = content
         )
@@ -149,8 +150,8 @@ fun SpikeStreamTextField(
             cursorColor = MaterialTheme.colorScheme.primary,
             focusedLabelColor = MaterialTheme.colorScheme.primary,
             unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            focusedContainerColor = Color.White.copy(alpha = 0.5f),
-            unfocusedContainerColor = Color.White.copy(alpha = 0.5f)
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
         ),
         shape = RoundedCornerShape(16.dp)
     )
@@ -167,6 +168,26 @@ fun SpikeStreamPrimaryButton(
     enabled: Boolean = true,
     isLoading: Boolean = false
 ) {
+    if (LocalRefinedStyle.current) {
+        Button(
+            onClick = onClick,
+            enabled = enabled && !isLoading,
+            modifier = modifier.heightIn(min = 52.dp),
+            shape = RoundedCornerShape(16.dp),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = LocalContentColor.current
+                )
+            } else {
+                Text(text, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+            }
+        }
+        return
+    }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
@@ -216,11 +237,12 @@ fun SpikeStreamSecondaryButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(50.dp),
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 52.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = MaterialTheme.colorScheme.primary
         ),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         shape = RoundedCornerShape(16.dp)
     ) {
         Text(
@@ -244,7 +266,8 @@ fun SpikeStreamOutlinedButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(50.dp),
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 52.dp),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = color
         ),
@@ -325,13 +348,13 @@ fun SpikeStreamDialog(
         onDismissRequest = onDismissRequest,
         shape = RoundedCornerShape(28.dp),
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-        tonalElevation = 12.dp,
+        tonalElevation = 2.dp,
         icon = icon,
         title = {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -353,9 +376,9 @@ fun SpikeStreamDialog(
         },
         modifier = Modifier
             .border(
-                BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 RoundedCornerShape(28.dp)
             )
-            .shadow(24.dp, RoundedCornerShape(28.dp), spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+
     )
 }

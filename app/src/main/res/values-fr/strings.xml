@@ -245,4 +245,5 @@
     <string name="youtube_watch_match">Voir le match sur YouTube</string>
     <string name="youtube_open_channel">Ouvrir la chaîne YouTube</string>
     <string name="youtube_open_failed">Aucune application disponible pour ouvrir YouTube.</string>
+    <string name="create_match_limit_reached">Vous avez atteint la limite de matchs de votre offre. Vous pouvez supprimer d’anciens matchs pour en créer un nouveau.</string>
 </resources>

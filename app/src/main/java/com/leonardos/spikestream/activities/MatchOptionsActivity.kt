@@ -83,7 +83,7 @@ import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
-import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.RefinedApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamPrimaryButton
@@ -126,7 +126,7 @@ sealed class InviteResult {
 
 data class CameraInfo(val id: String, val name: String, val facing: Int)
 
-class MatchOptionsActivity : ComponentActivity() {
+class MatchOptionsActivity : AnimatedAppActivity() {
 
     private lateinit var tokenManager: TokenManager
 
@@ -141,7 +141,7 @@ class MatchOptionsActivity : ComponentActivity() {
         val matchId = intent.getStringExtra("MATCH_ID") ?: ""
 
         setContent {
-            MyApplicationTheme {
+            RefinedApplicationTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -170,11 +170,7 @@ class MatchOptionsActivity : ComponentActivity() {
                                 showRegister.value = true
                             },
                             onGoogleLoginClick = {
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("${Constants.BASE_URL}/auth/google")
-                                )
-                                startActivity(intent)
+                                com.leonardos.spikestream.data.launchGoogleLogin(this)
                             },
                             onForgotPasswordClick = {
                                 val intent = Intent(
@@ -272,7 +268,6 @@ fun MatchOptionsScreen(
         mutableStateOf(DefaultOverlayStyle.classic)
     }
     var scorerLink by remember { mutableStateOf<String?>(null) }
-
     LaunchedEffect(teamA, teamB) {
 
         OverlayStyleStorage.getTeamAccent(
@@ -599,6 +594,8 @@ fun MatchOptionsScreen(
                         putExtra("TEAM_1", teamA)
                         putExtra("TEAM_2", teamB)
                         putExtra("RTMP_URL", rtmpUrl)
+                        putExtra("YOUTUBE_MANAGED", activity.intent.getBooleanExtra("YOUTUBE_MANAGED", false))
+                        putExtra("YOUTUBE_BROADCAST_ID", activity.intent.getStringExtra("YOUTUBE_BROADCAST_ID"))
                         putExtra("MATCH_ID", matchId)
                         putExtra("OVERLAY_POSITION", selectedPosition)
                         putExtra("CAMERA_ID", cameraId)
@@ -610,6 +607,12 @@ fun MatchOptionsScreen(
             )
 
             Spacer(Modifier.height(16.dp))
+
+            if (activity.intent.getBooleanExtra("YOUTUBE_MANAGED", false)) {
+                com.leonardos.spikestream.ui.components.YouTubeEventDetails(matchId, tokenManager)
+            } else if (platformFromRtmpUrl(rtmpUrl) == StreamPlatform.YOUTUBE) {
+                Text(stringResource(R.string.youtube_studio_closure), style = MaterialTheme.typography.bodySmall)
+            }
 
             TextButton(onClick = { showInfoDialog = true }) {
                 Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -627,6 +630,7 @@ fun MatchOptionsScreen(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.delete_match))
             }
+
 
             Spacer(Modifier.height(16.dp))
         }
@@ -775,7 +779,7 @@ private fun TeamAccentRow(
             text = teamName,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Black
+            fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.width(16.dp))
         TeamAccentEditor(
@@ -876,7 +880,7 @@ fun TeamAccentEditor(
                                 Text(
                                     text = "#%06X".format(draftColor.toArgb() and 0xFFFFFF),
                                     style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Black
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
@@ -1324,3 +1328,4 @@ fun CameraPicker(
         }
     }
 }
+

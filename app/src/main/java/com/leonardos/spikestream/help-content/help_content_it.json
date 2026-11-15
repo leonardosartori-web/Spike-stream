@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "title": "Help e FAQ",
+  "introduction": "Segui questi passaggi per preparare una partita, andare in diretta e tenere il punteggio. Scegli una domanda oppure cerca quello che vuoi fare.",
+  "articles": [
+    {
+      "id": "start",
+      "title": "Come funziona SpikeStream?",
+      "body": "Con SpikeStream puoi far vedere una partita in diretta e mostrare il punteggio sul video.\n\nUn telefono riprende il campo. Un’altra persona può aggiornare punti e set dal proprio telefono. Chi guarda segue la partita su YouTube, Facebook o sul servizio che hai scelto.\n\nPer cominciare:\n1. Accedi all’app.\n2. Tocca + e crea la partita.\n3. Scegli dove vuoi farla vedere.\n4. Apri la partita, prepara l’inquadratura e invita il segnapunti.\n5. Avvia la diretta quando siete pronti.\n\nPuoi preparare la partita in anticipo: crearla non avvia la diretta."
+    },
+    {
+      "id": "match",
+      "title": "Come creo una partita?",
+      "body": "Inserisci le squadre e scegli una destinazione, anche dai recenti. Creare la partita non crea un evento YouTube. La gestione scelta per la destinazione viene copiata nella partita: cambiare una destinazione in seguito non modifica gli incontri già salvati."
+    },
+    {
+      "id": "youtube-setup",
+      "title": "YouTube · Cosa devo fare la prima volta?",
+      "body": "Qui trovi solo le tue chiavi configurate in YouTube Studio. La chiave riservata a SpikeStream è esclusa. Verifica la visibilità dell’evento in Studio prima di trasmettere.\n\nLa chiave SpikeStream è riservata alla gestione automatica e non compare tra le chiavi di Studio. Usandola, SpikeStream prepara un evento pubblico per ogni partita che avvii in streaming.\n\nSpikeStream crea o recupera la propria chiave riservata. Quando premi Avvia streaming, prepara automaticamente un evento pubblico per questa partita. Potrebbe essere richiesta l’autorizzazione Google."
+    },
+    {
+      "id": "youtube-connect",
+      "title": "YouTube · Come lo collego a SpikeStream?",
+      "body": "La configurazione appartiene alla destinazione, non a un unico account Google obbligatorio per il tuo profilo SpikeStream. Puoi scegliere canali diversi. L’app ricorda modalità, chiave e pubblico nelle destinazioni recenti. Il server non conserva token Google: può esserti chiesto di autorizzare il canale quando prepari o termini una diretta."
+    },
+    {
+      "id": "youtube-public",
+      "title": "YouTube · Come faccio a far vedere la partita a tutti?",
+      "body": "La chiave non ha una visibilità propria. Con Prepara le dirette con SpikeStream, Avvia crea o recupera l’evento pubblico della partita sulla stessa chiave. Se YouTube non consente un evento pubblico, l’avvio viene bloccato. L’app non rende pubblico un evento che hai modificato in Studio.\n\nCon Diretta già configurata in YouTube Studio, controlla personalmente evento e visibilità Pubblica in Studio."
+    },
+    {
+      "id": "youtube-live",
+      "title": "YouTube · Quando sono davvero in diretta?",
+      "body": "Interrompi streaming conclude anche l’evento YouTube dopo conferma. Una perdita di connessione non lo conclude.\n\nPer gli eventi preparati da SpikeStream, Interrompi streaming conclude anche l’evento YouTube dopo conferma. Se la chiusura fallisce, puoi ritentare qui o nella schermata di ripresa. Eliminare la partita non cancella i video YouTube.\n\nPer le destinazioni configurate in Studio, Interrompi streaming ferma solo audio e video. Concludi l’evento in YouTube Studio."
+    },
+    {
+      "id": "facebook",
+      "title": "Facebook · Come trasmetto la partita?",
+      "body": "1. Quando crei la partita in SpikeStream, tocca Facebook.\n2. Accedi con l’account che gestisce il profilo o la pagina su cui vuoi trasmettere.\n3. Accetta le autorizzazioni richieste e scegli la voce desiderata tra quelle disponibili.\n4. Crea la partita e prepara la ripresa.\n5. Prima di iniziare, controlla su Facebook dove comparirà il video e chi potrà vederlo.\n6. Avvia da SpikeStream e verifica il video su Facebook. Se Facebook chiede un’ulteriore conferma per andare in diretta, segui i passaggi mostrati.\n\nSe non trovi la pagina desiderata, controlla di aver scelto l’account giusto e di poter gestire le sue dirette. Le opzioni disponibili dipendono dal tuo account Facebook.\n\nFai una prova prima della partita e, alla fine, controlla che il video non sia più in diretta."
+    },
+    {
+      "id": "twitch",
+      "title": "Twitch · Posso usarlo con SpikeStream?",
+      "body": "Sì, tramite il campo per inserire a mano l’indirizzo della diretta. Nell’app non c’è un pulsante per collegare direttamente Twitch.\n\n1. Prepara titolo e categoria della diretta nel pannello del tuo canale Twitch.\n2. Procurati l’indirizzo completo da usare per trasmettere. Se il canale è gestito dalla società o da un’altra persona, chiedi di preparartelo.\n3. In SpikeStream crea la partita e incolla quell’indirizzo nel campo URL RTMP.\n4. Apri la partita, avvia la diretta e controlla il tuo canale Twitch da un altro telefono.\n\nIl normale link del canale, quello che mandi agli spettatori, non va inserito in questo campo.\n\nSe non hai l’indirizzo completo, preparalo con chi gestisce il canale prima del giorno della partita."
+    },
+    {
+      "id": "manual",
+      "title": "Come uso un indirizzo che mi è stato fornito?",
+      "body": "Se la società o chi gestisce il canale ti ha fornito un indirizzo completo per trasmettere:\n\n1. Copialo per intero.\n2. Quando crei la partita in SpikeStream, incollalo nel campo URL RTMP.\n3. Completa la creazione e fai una breve prova.\n4. Chiedi a qualcuno di verificare il video sul canale scelto.\n\nNon inserire il link che si usa per guardare la partita: è un indirizzo diverso.\n\nSe il campo segnala un errore, chiedi a chi te l’ha dato di controllare che sia completo e ancora valido. Non modificare a tentativi lettere, numeri o simboli.\n\nPer YouTube e Facebook puoi usare i pulsanti dedicati nell’app."
+    },
+    {
+      "id": "scorer",
+      "title": "Come fa un’altra persona a tenere il punteggio?",
+      "body": "1. Apri la partita in SpikeStream.\n2. Premi il pulsante per generare il link invito del segnapunti.\n3. Invia il link alla persona incaricata oppure falle scansionare il QR.\n4. La persona apre la pagina sul suo telefono e aggiorna punti e set da lì.\n\nPer il segnapunti basta aprire il link: non serve installare SpikeStream. Entrambi i telefoni devono essere collegati a Internet.\n\nPrima della partita fate una prova e controllate che il punteggio sul video cambi, poi rimettete il risultato corretto.\n\nInvia questo link solo a chi deve tenere il punteggio. Agli spettatori manda invece il link del video."
+    },
+    {
+      "id": "overlay",
+      "title": "Come sistemo l’inquadratura e il tabellone?",
+      "body": "Apri la partita e scegli la telecamera con cui vuoi riprendere. Imposta i colori e la posizione del tabellone, poi apri l’anteprima.\n\nControlla che:\n• si veda bene tutto il campo;\n• i nomi delle squadre si leggano;\n• il tabellone non copra il gioco;\n• il telefono sia su un supporto stabile.\n\nSe l’app chiede di usare fotocamera e microfono, consenti l’accesso per poter riprendere video e audio.\n\nPuoi controllare tutto prima di andare in diretta: vedere l’anteprima nell’app non significa che gli spettatori ti stiano già guardando."
+    },
+    {
+      "id": "quality",
+      "title": "Quale qualità scelgo?",
+      "body": "Per iniziare scegli Auto nella schermata di streaming.\n\nSe il video si blocca spesso o la connessione è debole, prova 480p: l’immagine sarà meno definita, ma può essere più facile trasmettere senza interruzioni. Usa 720p quando la connessione regge bene.\n\nFai una prova dal punto della palestra da cui riprenderai, non soltanto da casa. Con l’arrivo del pubblico la connessione può cambiare.\n\nCarica il telefono prima della partita e controlla che non diventi troppo caldo durante la ripresa."
+    },
+    {
+      "id": "checklist",
+      "title": "Cosa controllo prima di iniziare?",
+      "body": "Controlla squadre, inquadratura, tabellone, segnapunti, batteria e rete. Leggi il riepilogo della destinazione: evento preparato su Avvia oppure visibilità gestita in Studio. Non usare contemporaneamente la stessa chiave per due partite. Controlla sempre il link spettatore dopo l’avvio."
+    },
+    {
+      "id": "delete-match",
+      "title": "La partita è finita: come la fermo e la elimino?",
+      "body": "Interrompi streaming conclude anche l’evento YouTube dopo conferma. Una perdita di connessione non lo conclude.\n\nPer gli eventi preparati da SpikeStream, Interrompi streaming conclude anche l’evento YouTube dopo conferma. Se la chiusura fallisce, puoi ritentare qui o nella schermata di ripresa. Eliminare la partita non cancella i video YouTube.\n\nPer le destinazioni configurate in Studio, Interrompi streaming ferma solo audio e video. Concludi l’evento in YouTube Studio."
+    },
+    {
+      "id": "replay",
+      "title": "Dove posso rivedere la partita?",
+      "body": "Cerca il video sul canale o sulla pagina dove hai trasmesso. La possibilità di rivederlo dipende dal servizio usato e dalle impostazioni della diretta.\n\nQuando trovi la registrazione, copia il link di quel video per mandarlo agli altri. Il link generale del canale potrebbe portare a una partita diversa.\n\nLa partita salvata in SpikeStream non è una registrazione video. Puoi eliminarla dall’app senza cancellare il video dal canale.\n\nSe vuoi conservare il filmato, controlla sul servizio dove hai trasmesso quali opzioni offre per salvarlo."
+    },
+    {
+      "id": "no-video",
+      "title": "Gli altri non vedono la partita: cosa controllo?",
+      "body": "Controlla connessione e destinazione. Per la gestione SpikeStream leggi l’errore di preparazione: canale errato, chiave occupata o evento modificato richiedono correzione prima di trasmettere. Se l’evento è concluso, crea una nuova partita. Per il collegamento diretto controlla evento, chiave e visibilità in Studio. Non confondere il link spettatore con l’invito del segnapunti."
+    },
+    {
+      "id": "connection",
+      "title": "Non riesco a collegare il canale o la diretta si interrompe",
+      "body": "Se non trovi il tuo canale:\n• riprova scegliendo l’account corretto;\n• accetta le autorizzazioni richieste;\n• per YouTube completa prima l’attivazione delle dirette;\n• per una pagina Facebook controlla di avere il permesso di gestirla.\n\nSe ti viene chiesto di accedere di nuovo, ripeti il collegamento. Se il servizio chiede di attendere, aspetta prima di riprovare.\n\nSe la diretta si interrompe, controlla Internet, prova la qualità 480p e verifica che il telefono non sia troppo caldo.\n\nQuando riparte, chiedi a uno spettatore di controllare che il video sia tornato visibile."
+    },
+    {
+      "id": "score-troubleshooting",
+      "title": "Il punteggio non cambia: cosa faccio?",
+      "body": "1. Controlla che il segnapunti abbia aperto il link della partita in corso.\n2. Verifica che entrambi i telefoni abbiano Internet.\n3. Chiedi alla persona al segnapunti di riaprire il link.\n4. Guarda prima il tabellone nell’app: il video che vedono gli spettatori può arrivare con qualche secondo di ritardo.\n\nSe hai creato una nuova partita, invia il nuovo link. Quello della partita precedente non aggiorna la nuova.\n\nSe la partita è stata eliminata, devi crearne un’altra e condividere il suo invito."
+    },
+    {
+      "id": "links",
+      "title": "Quale link mando agli spettatori?",
+      "body": "A chi vuole guardare, manda il link del video su YouTube, Facebook o sul servizio scelto.\n\nA chi deve tenere il punteggio, manda il link invito o il QR generato da SpikeStream. Chi riceve questo invito può modificare punti e set, quindi non pubblicarlo nel gruppo degli spettatori.\n\nL’indirizzo che hai incollato per collegare il canale serve soltanto a trasmettere: non inviarlo agli spettatori e non mostrarlo negli screenshot.\n\nPrima della partita chiedi a una persona di aprire il link del video e verificare che funzioni."
+    },
+    {
+      "id": "help",
+      "title": "Come trovo una risposta o aggiorno la guida?",
+      "body": "Scrivi nella ricerca quello che vuoi fare, per esempio «YouTube», «punteggio» o «eliminare». Tocca una domanda per leggere i passaggi.\n\nPuoi leggere questa guida anche senza Internet. Quando sei connesso, premi Aggiorna per controllare se ci sono nuove istruzioni.\n\nIn fondo alla schermata trovi la versione di SpikeStream installata sul telefono. Il pulsante Aggiorna qui aggiorna solo la guida; per aggiornare l’app usa lo store o il canale da cui l’hai installata."
+    },
+    {
+      "id": "youtube-access",
+      "title": "YouTube · Chi può far creare gli eventi a SpikeStream?",
+      "body": "La creazione degli eventi è la funzione YouTube con SpikeStream: dipende dal limite previsto dal piano o personalizzato per il tuo account. Un limite pari a 0 blocca la funzione; non esiste una seconda abilitazione. Free è il piano di base e non scade. Alla scadenza di Plus o Ultra si applicano i limiti Free, senza eccezioni del piano scaduto. Recupero e chiusura degli eventi esistenti restano disponibili."
+    },
+    {
+      "id": "account-plans",
+      "title": "Piani · Come funzionano i limiti?",
+      "body": "Free, Plus e Ultra limitano le partite salvate contemporaneamente: sia il totale, sia YouTube con SpikeStream, YouTube Studio, Facebook e RTMP personalizzato. Eliminare una partita libera un posto; avvii e riconnessioni non consumano altri posti. I valori iniziali sono 10, 100 e 200 e possono essere personalizzati da chi gestisce il tuo account. Alla scadenza si applica Free e scadono le eccezioni personali, senza eliminare partite o interrompere dirette. Free non scade. La creazione degli eventi segue il limite YouTube con SpikeStream. Il lucchetto rimanda alla pagina Piani e abilitazioni. Usa Aggiorna accesso per verificare una modifica recente."
+    }
+  ]
+}

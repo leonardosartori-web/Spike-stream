@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="youtube_managed_access_hint">L’accesso dipende dal limite YouTube con SpikeStream del tuo piano. Un limite pari a 0 blocca la funzione. Free non scade.</string>
+<string name="youtube_managed_access_required">Il tuo piano non consente attualmente YouTube con SpikeStream. Verifica il piano oppure usa una destinazione configurata in YouTube Studio.</string>
+</resources>

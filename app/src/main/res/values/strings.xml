@@ -245,4 +245,5 @@
     <string name="youtube_watch_match">Watch match on YouTube</string>
     <string name="youtube_open_channel">Open YouTube channel</string>
     <string name="youtube_open_failed">No app available to open YouTube.</string>
+    <string name="create_match_limit_reached">You have reached your plan’s match limit. You can delete old matches to create a new one.</string>
 </resources>

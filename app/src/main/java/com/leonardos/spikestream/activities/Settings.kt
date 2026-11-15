@@ -1,6 +1,6 @@
 package com.leonardos.spikestream.activities
 
-import com.leonardos.spikestream.ui.theme.MyApplicationTheme
+import com.leonardos.spikestream.ui.theme.RefinedApplicationTheme
 import com.leonardos.spikestream.ui.theme.SpikeStreamScreen
 import com.leonardos.spikestream.ui.theme.SpikeStreamDangerButton
 import android.os.Bundle
@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.text.font.FontWeight
 import com.leonardos.spikestream.ui.theme.SpikeStreamGlassCard
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +33,7 @@ import com.leonardos.spikestream.R
 import com.leonardos.spikestream.utils.TourManager
 import com.leonardos.spikestream.data.*
 
-class SettingsActivity : ComponentActivity() {
+class SettingsActivity : AnimatedAppActivity() {
 
     private lateinit var tokenManager: TokenManager
 
@@ -42,7 +44,7 @@ class SettingsActivity : ComponentActivity() {
         tokenManager = TokenManager(applicationContext)
 
         setContent {
-            MyApplicationTheme {
+            RefinedApplicationTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -99,6 +101,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -106,7 +109,7 @@ fun SettingsScreen(
 
             Text(
                 stringResource(R.string.account_settings_title),
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Black)
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold)
             )
 
             Spacer(Modifier.height(40.dp))
@@ -134,7 +137,7 @@ fun SettingsScreen(
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.settings_replay_tour), color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.settings_replay_tour), color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -196,7 +199,7 @@ fun SettingsScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(stringResource(R.string.delete_account), color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.delete_account), color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

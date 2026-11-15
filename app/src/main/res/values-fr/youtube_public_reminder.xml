@@ -1,0 +1,6 @@
+<resources>
+    <string name="youtube_public_reminder_title">Important : direct YouTube public</string>
+    <string name="youtube_public_reminder_body">Si vous voulez que le direct soit public, définissez sa visibilité sur PUBLIC dans YouTube Studio.\n\nLes directs privés ou non répertoriés ne sont pas visibles par tous sur votre chaîne. Cette application ne modifie pas la visibilité sur YouTube.</string>
+    <string name="youtube_public_reminder_confirm">Confirmer et créer</string>
+    <string name="youtube_public_reminder_back">Retour</string>
+</resources>

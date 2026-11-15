@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "title": "Help & FAQ",
+  "introduction": "Follow these steps to prepare a match, go live and keep score. Choose a question or search for what you want to do.",
+  "articles": [
+    {
+      "id": "start",
+      "title": "How does SpikeStream work?",
+      "body": "SpikeStream lets you show a match live with the score on the video.\n\nOne phone films the court. Another person can update points and sets from their own phone. Viewers watch on YouTube, Facebook or the service you choose.\n\nTo get started:\n1. Sign in to the app.\n2. Tap + and create a match.\n3. Choose where people will watch it.\n4. Open the match, set up the camera and invite your scorekeeper.\n5. Start the broadcast when everyone is ready.\n\nYou can prepare a match in advance: creating it does not start the broadcast."
+    },
+    {
+      "id": "match",
+      "title": "How do I create a match?",
+      "body": "Enter the teams and choose a destination, including recent destinations. Creating a match creates no YouTube event. Its destination settings are copied into the match; later changes do not alter saved matches."
+    },
+    {
+      "id": "youtube-setup",
+      "title": "YouTube · What do I do the first time?",
+      "body": "Only your keys configured in YouTube Studio are listed here. The key reserved for SpikeStream is excluded. Check the event visibility in Studio before streaming.\n\nThe SpikeStream key is reserved for automatic event management and does not appear among Studio keys. Using it, SpikeStream prepares a public event for each match you start streaming.\n\nSpikeStream creates or reuses its reserved key. When you tap Start streaming, it automatically prepares a public event for this match. Google authorization may be required."
+    },
+    {
+      "id": "youtube-connect",
+      "title": "YouTube · How do I connect it to SpikeStream?",
+      "body": "Settings belong to each destination, without tying your SpikeStream profile to a single Google account. You can use different channels. Recent destinations retain the mode, key and audience. The server does not store Google tokens; authorization may be requested when preparing or ending an event."
+    },
+    {
+      "id": "youtube-public",
+      "title": "YouTube · How can everyone watch the match?",
+      "body": "A key has no visibility setting. With SpikeStream management, Start creates or retrieves the public match event on the same key. If YouTube does not allow public visibility, Start is blocked. The app does not republish an event changed in Studio.\n\nFor direct transmission, check the event and Public visibility in Studio yourself."
+    },
+    {
+      "id": "youtube-live",
+      "title": "YouTube · When am I actually live?",
+      "body": "Stop streaming also ends the YouTube event after confirmation. A connection loss does not end it.\n\nFor events prepared by SpikeStream, Stop streaming also ends the YouTube event after confirmation. If closure fails, retry here or in the streaming screen. Deleting the match does not delete YouTube videos.\n\nFor destinations configured in Studio, Stop only stops audio and video. End the event in YouTube Studio."
+    },
+    {
+      "id": "facebook",
+      "title": "Facebook · How do I broadcast the match?",
+      "body": "1. When creating your match in SpikeStream, tap Facebook.\n2. Sign in with the account that manages the profile or Page you want to use.\n3. Grant the requested permissions and select the desired entry from those available.\n4. Create the match and prepare the camera.\n5. Before starting, check on Facebook where the video will appear and who can watch it.\n6. Start from SpikeStream and check the video on Facebook. If Facebook asks for another confirmation to go live, follow the steps shown.\n\nIf your Page is missing, check you chose the right account and can manage its broadcasts. Available options depend on your Facebook account.\n\nTest before match day and check the video is no longer live when you finish."
+    },
+    {
+      "id": "twitch",
+      "title": "Twitch · Can I use it with SpikeStream?",
+      "body": "Yes, using the field for entering a broadcast address manually. There is no button to connect Twitch directly in the app.\n\n1. Prepare the broadcast title and category in your Twitch channel dashboard.\n2. Get the complete address to use for broadcasting. If your club or another person manages the channel, ask them to prepare it for you.\n3. Create a match in SpikeStream and paste that address into the RTMP URL field.\n4. Open the match, start broadcasting and check your Twitch channel from another phone.\n\nDo not enter the normal channel link you send to viewers in this field.\n\nIf you do not have the complete address, prepare it with the channel manager before match day."
+    },
+    {
+      "id": "manual",
+      "title": "How do I use an address someone gave me?",
+      "body": "If your club or channel manager has given you a complete broadcast address:\n\n1. Copy all of it.\n2. When creating a match in SpikeStream, paste it into the RTMP URL field.\n3. Finish creating the match and run a short test.\n4. Ask someone to check the video on the chosen channel.\n\nDo not enter the link used to watch the match: that is a different address.\n\nIf the field shows an error, ask the person who supplied it to check it is complete and still valid. Do not guess changes to letters, numbers or symbols.\n\nFor YouTube and Facebook, you can use their dedicated buttons in the app."
+    },
+    {
+      "id": "scorer",
+      "title": "How can someone else keep score?",
+      "body": "1. Open the match in SpikeStream.\n2. Press the button to generate the scorekeeper invitation link.\n3. Send the link to your scorekeeper or let them scan the QR code.\n4. They open the page on their phone and update points and sets there.\n\nThe scorekeeper only needs to open the link: they do not need to install SpikeStream. Both phones need Internet access.\n\nTest an update before the match, check the score changes on the video, then restore the correct score.\n\nSend this link only to the scorekeeper. Send viewers the video link instead."
+    },
+    {
+      "id": "overlay",
+      "title": "How do I set up the camera and scoreboard?",
+      "body": "Open the match and choose the camera you want to use. Set the scoreboard colours and position, then open the preview.\n\nCheck that:\n• the whole court is clearly visible;\n• team names are readable;\n• the scoreboard does not cover the action;\n• the phone is on a stable support.\n\nIf the app asks to use the camera and microphone, allow access to record video and sound.\n\nYou can check everything before going live: seeing the preview in the app does not mean viewers are already watching."
+    },
+    {
+      "id": "quality",
+      "title": "Which quality should I choose?",
+      "body": "Start with Auto on the streaming screen.\n\nIf the video often freezes or the connection is weak, try 480p: the picture will be less detailed, but it may be easier to broadcast without interruptions. Use 720p when the connection works well.\n\nTest from the exact filming position at the venue, not just at home. The connection can change when spectators arrive.\n\nCharge the phone before the match and check it does not get too hot while filming."
+    },
+    {
+      "id": "checklist",
+      "title": "What should I check before starting?",
+      "body": "Check teams, framing, scoreboard, scorer, battery and network. Read the destination summary: event prepared on Start or visibility managed in Studio. Do not use the same key for simultaneous matches. Always check the viewer link after starting."
+    },
+    {
+      "id": "delete-match",
+      "title": "The match is over: how do I stop and delete it?",
+      "body": "Stop streaming also ends the YouTube event after confirmation. A connection loss does not end it.\n\nFor events prepared by SpikeStream, Stop streaming also ends the YouTube event after confirmation. If closure fails, retry here or in the streaming screen. Deleting the match does not delete YouTube videos.\n\nFor destinations configured in Studio, Stop only stops audio and video. End the event in YouTube Studio."
+    },
+    {
+      "id": "replay",
+      "title": "Where can I watch the match again?",
+      "body": "Look for the video on the channel or Page where you broadcast. Whether it is available to watch again depends on the service and your broadcast settings.\n\nWhen you find the recording, copy that video’s link to send to others. The general channel link could lead to a different match.\n\nA saved match in SpikeStream is not a video recording. You can delete it from the app without deleting the channel’s video.\n\nIf you want to keep the footage, check what options your broadcast service offers for saving it."
+    },
+    {
+      "id": "no-video",
+      "title": "Other people cannot see the match: what should I check?",
+      "body": "Check Internet and the destination. For SpikeStream management, read the preparation error: wrong channel, busy key or changed event must be resolved first. Create a new match if the event ended. For direct transmission, check event, key and visibility in Studio. Viewers need the video link, not the scorer invitation."
+    },
+    {
+      "id": "connection",
+      "title": "I cannot connect my channel, or the broadcast stops",
+      "body": "If you cannot find your channel:\n• retry with the correct account;\n• grant the requested permissions;\n• for YouTube, finish enabling live broadcasts first;\n• for a Facebook Page, check you have permission to manage it.\n\nIf asked to sign in again, reconnect. If the service asks you to wait, wait before retrying.\n\nIf the broadcast stops, check Internet, try 480p quality and check the phone is not too hot.\n\nOnce it resumes, ask a viewer to confirm the video is visible again."
+    },
+    {
+      "id": "score-troubleshooting",
+      "title": "The score is not changing: what do I do?",
+      "body": "1. Check the scorekeeper opened the current match’s link.\n2. Check both phones have Internet access.\n3. Ask the scorekeeper to reopen the link.\n4. Look at the scoreboard in the app first: the video viewers see may arrive a few seconds later.\n\nIf you created a new match, send its new link. The previous match’s link does not update the new one.\n\nIf the match was deleted, create another one and share its invitation."
+    },
+    {
+      "id": "links",
+      "title": "Which link do I send to viewers?",
+      "body": "Send viewers the video link on YouTube, Facebook or your chosen service.\n\nSend your scorekeeper the invitation link or QR code generated by SpikeStream. Anyone receiving this invitation can change points and sets, so do not post it in your spectators’ group.\n\nThe address you pasted to connect the channel is only for broadcasting: do not send it to viewers or show it in screenshots.\n\nBefore the match, ask someone to open the video link and check it works."
+    },
+    {
+      "id": "help",
+      "title": "How do I find an answer or refresh the guide?",
+      "body": "Search for what you want to do, such as «YouTube», «score» or «delete». Tap a question to read the steps.\n\nYou can read this guide without Internet. When connected, press Refresh to check for new instructions.\n\nYour installed SpikeStream version appears at the bottom of the screen. Refresh here only updates the guide; update the app through the store or channel you installed it from."
+    },
+    {
+      "id": "youtube-access",
+      "title": "YouTube · Who can have SpikeStream create events?",
+      "body": "Creating events is the YouTube with SpikeStream feature. It follows your plan or individual limit. A limit of 0 blocks the feature; there is no separate authorization. Free is the default plan and never expires. When Plus or Ultra expires, Free limits apply without the expired plan exceptions. Existing events can still be recovered and finished."
+    },
+    {
+      "id": "account-plans",
+      "title": "Plans · How do limits work?",
+      "body": "Free, Plus and Ultra limit saved matches, both overall and for YouTube with SpikeStream, YouTube Studio, Facebook and custom RTMP. Deleting a match frees a slot; starts and reconnections do not use extra slots. Initial limits are 10, 100 and 200 and your administrator can customize them. On expiry, Free limits apply and personal exceptions expire, without deleting matches or interrupting streams. Free never expires. Automatic events follow the YouTube with SpikeStream limit. The lock opens Plans and access. Use Refresh access to check recent changes."
+    }
+  ]
+}
