@@ -69,15 +69,11 @@ class SettingsActivity : AnimatedAppActivity() {
                     SettingsScreen(
                         jwtToken = tokenState.value!!,
                         onAccountDeleted = {
-                            coroutineScope.launch {
-                                tokenManager.clearToken()   // elimina token
+                            deletedToken -> coroutineScope.launch {
+                                tokenManager.clearToken(expectedToken = deletedToken)
+                                Toast.makeText(context, R.string.account_deleted_success, Toast.LENGTH_LONG).show()
+                                finish()
                             }
-                            Toast.makeText(
-                                context,
-                                R.string.account_deleted_success,
-                                Toast.LENGTH_LONG
-                            ).show()
-                            finish() // chiude la SettingsActivity
                         }
                     )
                 }
@@ -90,7 +86,7 @@ class SettingsActivity : AnimatedAppActivity() {
 @Composable
 fun SettingsScreen(
     jwtToken: String,
-    onAccountDeleted: () -> Unit
+    onAccountDeleted: (String) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
@@ -192,7 +188,10 @@ fun SettingsScreen(
                         scope.launch {
                             val success = StreamApi.makeDeleteMe(jwtToken)
                             if (success) {
-                                onAccountDeleted()
+                                onAccountDeleted(jwtToken)
+                            } else {
+                                isLoading = false
+                                Toast.makeText(context, R.string.connection_failed, Toast.LENGTH_LONG).show()
                             }
                         }
                     },

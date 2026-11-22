@@ -58,6 +58,14 @@ fun openAccountPlans(context: Context) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Constants.BASE_URL + "/account-plans.html?lang=" + lang))) }
 }
 object AccountAccessApi {
+    suspend fun exchange(code: String, verifier: String): String? = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("code", code).put("verifier", verifier)
+        val request = Request.Builder().url(Constants.BASE_URL + "/auth/app-exchange")
+            .post(okhttp3.RequestBody.create(okhttp3.MediaType.get("application/json"), body.toString())).build()
+        getHttpClient().newCall(request).execute().use { response ->
+            if (response.isSuccessful) JSONObject(response.body()?.string().orEmpty()).getString("access_token") else null
+        }
+    }
     suspend fun refresh(token: String): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(Constants.BASE_URL + "/auth/entitlements").header("Authorization", "Bearer " + token).get().build()

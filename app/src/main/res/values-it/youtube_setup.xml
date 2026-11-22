@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="youtube_setup_button">Crea chiave riutilizzabile</string>
-    <string name="youtube_setup_confirm">Crea o recupera chiave</string>
+    <string name="youtube_setup_confirm">Continua con Google</string>
     <string name="youtube_setup_intro">Autorizza YouTube per creare o recuperare una chiave RTMP riutilizzabile. Non vengono creati eventi e il server SpikeStream non conserva token di accesso Google. Prima di trasmettere, configura la diretta con visibilità Pubblica in YouTube Studio: la chiave non imposta la visibilità dei video.</string>
     <string name="youtube_setup_created">Chiave pronta. Prima di trasmettere, configura la visibilità Pubblica in YouTube Studio.</string>
     <string name="youtube_setup_ended">Chiave recuperata. L’evento iniziale è terminato o è stato rimosso: prepara la diretta in YouTube Studio. SpikeStream non crea un nuovo evento.</string>

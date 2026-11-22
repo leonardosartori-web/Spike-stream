@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="youtube_managed_title">Pas de clé configurée ? Préparez l’événement avec SpikeStream</string>
+    <string name="youtube_managed_title">Connecter YouTube : diffusion publique automatique</string>
     <string name="youtube_managed_intro">Configurez une destination une fois et réutilisez-la pour vos matchs.</string>
-    <string name="youtube_managed_description">SpikeStream crée ou récupère sa clé réservée. Au démarrage du streaming, il prépare automatiquement un événement public pour ce match. Une autorisation Google peut être demandée.</string>
-    <string name="youtube_managed_ready">Événement préparé par SpikeStream au démarrage</string>
+    <string name="youtube_managed_description">Connectez-vous avec Google et choisissez la chaîne du club. Aucune clé à copier. Au démarrage, SpikeStream prépare la diffusion publique du match. La diffusion en direct doit être activée sur la chaîne.</string>
+    <string name="youtube_managed_ready">Chaîne prête. Le direct public sera préparé au démarrage de la diffusion.</string>
     <string name="youtube_advanced">Options avancées</string>
-    <string name="youtube_studio_title">Utiliser une destination déjà configurée</string>
+    <string name="youtube_studio_title">Votre direct est déjà préparé dans YouTube Studio ?</string>
     <string name="youtube_studio_description">Préparez le direct et réglez sa visibilité sur Publique dans YouTube Studio. Sélectionnez ensuite la clé dans SpikeStream et réutilisez-la pour diffuser vos matchs.</string>
     <string name="youtube_managed_controls_hint">Interrompre le streaming termine aussi l’événement YouTube après confirmation. Une perte de connexion ne le termine pas.</string>
     <string name="youtube_pause_video">Interrompre le streaming</string>
@@ -19,7 +19,7 @@
     <string name="youtube_select_key">Sélectionner une clé</string>
     <string name="youtube_studio_guide_title">Comment configurer YouTube Studio</string>
     <string name="youtube_studio_guide">1. Ouvrez YouTube Studio et activez le direct sur votre chaîne.\n2. Préparez un direct, choisissez une clé réutilisable, la visibilité Publique et indiquez si le contenu est destiné aux enfants.\n3. Sélectionnez cette clé dans SpikeStream.\n4. Avant chaque match, vérifiez l’événement cible et sa visibilité dans Studio. Testez le comportement de votre chaîne : la configuration initiale ne garantit pas que tous les directs suivants seront publics.\n\nSpikeStream envoie uniquement le son et la vidéo, sans créer d’événement ni modifier sa visibilité. Terminez l’événement YouTube dans Studio.</string>
-    <string name="youtube_configure_event">Configurer la création d’événement</string>
+    <string name="youtube_configure_event">Connecter la chaîne YouTube</string>
     <string name="youtube_studio_summary">Événement géré dans YouTube Studio</string>
     <string name="youtube_manage_destination">Gérer la destination</string>
     <string name="youtube_close_in_details">Clôture non confirmée. Ouvrez les détails du match pour réessayer.</string>

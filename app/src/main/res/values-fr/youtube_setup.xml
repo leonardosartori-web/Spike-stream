@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="youtube_setup_button">Créer une clé réutilisable</string>
-    <string name="youtube_setup_confirm">Créer ou récupérer la clé</string>
+    <string name="youtube_setup_confirm">Continuer avec Google</string>
     <string name="youtube_setup_intro">Autorisez YouTube pour créer ou récupérer une clé RTMP réutilisable. Aucun événement ne sera créé et le serveur SpikeStream ne conserve aucun jeton d’accès Google. Avant de diffuser, configurez la visibilité Publique dans YouTube Studio : la clé ne définit pas la visibilité des vidéos.</string>
     <string name="youtube_setup_created">Clé prête. Avant de diffuser, configurez la visibilité Publique dans YouTube Studio.</string>
     <string name="youtube_setup_ended">Clé récupérée. L’événement initial est terminé ou supprimé : préparez le direct dans YouTube Studio. SpikeStream ne crée pas de nouvel événement.</string>

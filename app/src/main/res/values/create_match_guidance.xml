@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="create_intro">Prepare your match in 3 steps. Start filming afterwards.</string>
+    <string name="create_step_teams">1. Who is playing?</string>
+    <string name="create_step_channel">2. Where will people watch?</string>
+    <string name="create_channel_hint">Choose YouTube to connect a channel. For Facebook, open the guide. Streamed before? Reuse a saved channel.</string>
+    <string name="create_step_review">3. Create the match</string>
+    <string name="create_next">After creating the match, open it, set up your camera and tap Start streaming when ready.</string>
+    <string name="create_missing_teams">Enter both team names in step 1.</string>
+    <string name="create_missing_channel">Choose and set up a channel in step 2 to continue.</string>
+    <string name="create_checking">Checking access…</string>
+    <string name="create_reuse_channel">Reuse a connected channel</string>
+    <string name="create_show_manual">Other services or manual address (RTMP)</string>
+    <string name="create_hide_manual">Hide manual address</string>
+    <string name="create_youtube_easy">First time? Start here</string>
+</resources>

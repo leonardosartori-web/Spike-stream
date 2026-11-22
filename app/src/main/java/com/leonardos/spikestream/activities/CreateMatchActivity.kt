@@ -1,7 +1,6 @@
 package com.leonardos.spikestream.activities
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -22,14 +21,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.facebook.CallbackManager
 import com.leonardos.spikestream.R
 import com.leonardos.spikestream.data.*
 import com.leonardos.spikestream.ui.components.*
 import com.leonardos.spikestream.ui.theme.*
-import com.leonardos.spikestream.utils.Constants
 import com.leonardos.spikestream.utils.TourManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -57,39 +54,12 @@ class CreateMatchActivity: AnimatedAppActivity() {
                     color = MaterialTheme.colorScheme.background
                 )
                 {
-                    val tokenState = remember { mutableStateOf<String?>(null) }
-                    val coroutineScope = rememberCoroutineScope()
-
-                    LaunchedEffect(Unit) {
-                        tokenManager.tokenFlow.collect { token ->
-                            tokenState.value = token
+                    val token by tokenManager.tokenFlow.collectAsState(initial = tokenManager.currentToken)
+                    if (token == null) {
+                        LaunchedEffect(Unit) {
+                            startActivity(Intent(this@CreateMatchActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                            finish()
                         }
-                    }
-
-                    val showRegister = remember { mutableStateOf(false) }
-
-                    if (tokenState.value == null) {
-                        // Mostra la login
-                        LoginScreen(onLoginSuccess = { newToken ->
-                            coroutineScope.launch {
-                                tokenManager.saveToken(newToken)
-                                tokenState.value = newToken
-                            }
-                        },
-                            onRegisterClick = {
-                                showRegister.value = true
-                            },
-                            onGoogleLoginClick = {
-                                com.leonardos.spikestream.data.launchGoogleLogin(this)
-                            },
-                            onForgotPasswordClick = {
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("${Constants.BASE_URL}/auth/reset-password")
-                                )
-                                startActivity(intent)
-                            }
-                        )
                     } else {
                         CreateMatchScreen(tokenManager, callbackManager)
                     }
@@ -111,9 +81,8 @@ class CreateMatchActivity: AnimatedAppActivity() {
         suspend fun refreshAccount() {
             checkingAccount = true
             try {
-                val refreshed = AccountAccessApi.refresh(tokenManager.currentToken ?: appToken)
-                accountRefreshFailed = refreshed == null
-                if (refreshed != null) tokenManager.saveToken(refreshed)
+                val refreshed = AccountAccessApi.refresh(appToken)
+                accountRefreshFailed = refreshed == null || !tokenManager.saveToken(refreshed, expectedToken = appToken)
             } finally { checkingAccount = false }
         }
         LaunchedEffect(Unit) { refreshAccount() }
@@ -141,7 +110,7 @@ class CreateMatchActivity: AnimatedAppActivity() {
 
         val createMatch: () -> Unit = {
             val selected = destination
-            if (selected != null && selected.isReady && !checkingAccount && !accountRefreshFailed && account?.canCreate(selected.accountKind()) == true && !destinationLoading && !isLoading) {
+            if (team1.isNotBlank() && team2.isNotBlank() && selected != null && selected.isReady && !checkingAccount && !accountRefreshFailed && account?.canCreate(selected.accountKind()) == true && !destinationLoading && !isLoading) {
                 isLoading = true
                 errorMessage = null
                 val homeTeam = team1.trim()
@@ -206,15 +175,15 @@ class CreateMatchActivity: AnimatedAppActivity() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(Modifier.height(40.dp))
-                Text(stringResource(R.string.create_match_title).uppercase(),
-                    style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp),
+                Text(stringResource(R.string.create_match_title),
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onBackground)
-                Text(stringResource(R.string.configure_stream_subtitle), style = MaterialTheme.typography.bodyMedium,
+                Text(stringResource(R.string.create_intro), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
                 Spacer(Modifier.height(32.dp))
 
                 SpikeStreamGlassCard {
-                    Text(stringResource(R.string.match_details_title), style = MaterialTheme.typography.titleLarge,
+                    Text(stringResource(R.string.create_step_teams), style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 20.dp))
                     OutlinedTextField(value = team1, onValueChange = { team1 = it }, enabled = !isLoading,
                         label = { Text(stringResource(R.string.local_team)) }, singleLine = true,
@@ -237,15 +206,34 @@ class CreateMatchActivity: AnimatedAppActivity() {
                         )
                     }
                     Spacer(Modifier.height(24.dp))
+                    Text(stringResource(R.string.create_step_review), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.create_next), style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(12.dp))
                     if (checkingAccount) LinearProgressIndicator(Modifier.fillMaxWidth())
                     if (accountRefreshFailed) Text(stringResource(R.string.account_refresh_failed), color = MaterialTheme.colorScheme.error)
-                    TextButton(enabled = !checkingAccount && !isLoading, onClick = { scope.launch { refreshAccount() } }) { Text(stringResource(R.string.account_refresh)) }
+                    if (accountRefreshFailed || destination?.let { account?.canCreate(it.accountKind()) != true } == true) TextButton(enabled = !checkingAccount && !isLoading, onClick = { scope.launch { refreshAccount() } }) { Text(stringResource(R.string.account_refresh)) }
                     if (destination != null && account?.canCreate(destination!!.accountKind()) != true) {
                         Text(stringResource(R.string.account_locked))
                         TextButton(onClick = { openAccountPlans(context) }) { Text(stringResource(R.string.account_plans)) }
                     }
                     errorMessage?.let {
                         Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    val guidance = when {
+                        team1.isBlank() || team2.isBlank() -> R.string.create_missing_teams
+                        checkingAccount -> R.string.create_checking
+                        destinationLoading -> R.string.destination_loading
+                        destination?.isReady != true -> R.string.create_missing_channel
+                        else -> null
+                    }
+                    guidance?.let {
+                        Text(stringResource(it), style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    if (team1.isNotBlank() && team2.isNotBlank() && destination?.isReady == true) {
+                        Text(team1.trim() + " • " + team2.trim(), fontWeight = FontWeight.Bold)
+                        Text(destination!!.name, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(12.dp))
                     }
                     SpikeStreamPrimaryButton(

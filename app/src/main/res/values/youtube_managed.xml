@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="youtube_managed_title">No configured key? Let SpikeStream prepare the event</string>
+    <string name="youtube_managed_title">Connect YouTube: automatic public stream</string>
     <string name="youtube_managed_intro">Configure a destination once and reuse it for your matches.</string>
-    <string name="youtube_managed_description">SpikeStream creates or reuses its reserved key. When you tap Start streaming, it automatically prepares a public event for this match. Google authorization may be required.</string>
-    <string name="youtube_managed_ready">Event prepared by SpikeStream on Start</string>
+    <string name="youtube_managed_description">Sign in with Google and choose your club’s channel. No key to copy. When you tap Start streaming, SpikeStream prepares the public match broadcast. Live streaming must be enabled on the channel.</string>
+    <string name="youtube_managed_ready">Channel ready. Your public broadcast will be prepared when you tap Start streaming.</string>
     <string name="youtube_advanced">Advanced options</string>
-    <string name="youtube_studio_title">Use a configured destination</string>
+    <string name="youtube_studio_title">Already prepared your broadcast in YouTube Studio?</string>
     <string name="youtube_studio_description">Prepare the live event and set its visibility to Public in YouTube Studio. Then select the key in SpikeStream and reuse it to stream your matches.</string>
     <string name="youtube_managed_controls_hint">Stop streaming also ends the YouTube event after confirmation. A connection loss does not end it.</string>
     <string name="youtube_pause_video">Stop streaming</string>
@@ -19,7 +19,7 @@
     <string name="youtube_select_key">Select key</string>
     <string name="youtube_studio_guide_title">How to configure YouTube Studio</string>
     <string name="youtube_studio_guide">1. Open YouTube Studio and enable live streaming on your channel.\n2. Prepare a live event, choose a reusable stream key, set Public visibility and specify whether the audience is made for kids.\n3. Select that key in SpikeStream.\n4. Before each match, check the destination event and its visibility in Studio. Test how your channel handles subsequent streams: the initial setup does not guarantee they will all be public.\n\nSpikeStream sends audio and video only. It does not create events or change visibility in this mode. End the YouTube event in Studio.</string>
-    <string name="youtube_configure_event">Configure event creation</string>
+    <string name="youtube_configure_event">Connect YouTube channel</string>
     <string name="youtube_studio_summary">Event managed in YouTube Studio</string>
     <string name="youtube_manage_destination">Manage destination</string>
     <string name="youtube_close_in_details">Closing is not confirmed. Open match details to retry.</string>

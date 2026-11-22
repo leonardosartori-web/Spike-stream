@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -85,6 +86,7 @@ fun StreamDestinationPicker(
     var showRecent by remember { mutableStateOf(false) }
     var recent by remember(store) { mutableStateOf(store.recent()) }
     var url by remember { mutableStateOf(selection?.rtmpUrl.orEmpty()) }
+    var showManual by rememberSaveable { mutableStateOf(false) }
     var revealUrl by remember { mutableStateOf(false) }
     val enabled = !busy && !creating
 
@@ -285,8 +287,8 @@ fun StreamDestinationPicker(
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.destination_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.destination_subtitle), style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.create_step_channel), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.create_channel_hint), style = MaterialTheme.typography.bodyMedium)
 
         TextButton(enabled = enabled, onClick = {
             val guide = TextView(context).apply {
@@ -321,11 +323,11 @@ fun StreamDestinationPicker(
                 Text("Facebook")
             }
         }
-        Button(onClick = { recent = store.recent(); showRecent = true },
+        if (recent.isNotEmpty()) Button(onClick = { recent = store.recent(); showRecent = true },
             enabled = enabled && recent.isNotEmpty(), modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary,
                 contentColor = MaterialTheme.colorScheme.onSecondary)) {
-            Text(stringResource(R.string.recent_rtmp_title))
+            Text(stringResource(R.string.create_reuse_channel))
         }
 
         if (busy) Text(stringResource(R.string.destination_loading), style = MaterialTheme.typography.bodySmall)
@@ -366,40 +368,45 @@ fun StreamDestinationPicker(
         }
 
         HorizontalDivider()
-        Text((if (available("custom")) "" else "🔒 ") + stringResource(R.string.destination_full_url), style = MaterialTheme.typography.titleMedium)
-        if (!available("custom")) TextButton(onClick = { openAccountPlans(context) }) { Text(stringResource(R.string.account_plans)) }
-        Text(stringResource(R.string.destination_manual_hint), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(
-            value = url, enabled = enabled,
-            onValueChange = { value ->
-                url = value
-                selectionNotice = null
-                notice = null
-                // Manual edits deliberately discard social metadata that may no longer match the URL.
-                select(value.takeIf { it.isNotBlank() }?.let {
-                    StreamDestination(StreamPlatform.CUSTOM, streamDestinationHost(it), it.trim())
-                })
-            },
-            label = { Text(stringResource(R.string.url_rtmp_label)) },
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            visualTransformation = if (revealUrl) VisualTransformation.None else PasswordVisualTransformation(),
-            isError = url.isNotBlank() && !RtmpUrlValidator.isValid(url)
-        )
-        if (url.isNotEmpty()) {
-            TextButton(onClick = { revealUrl = !revealUrl }, enabled = enabled) {
-                Text(stringResource(if (revealUrl) R.string.destination_hide_key else R.string.destination_show_key))
-            }
+        TextButton(enabled = enabled, onClick = { showManual = !showManual }) {
+            Text(stringResource(if (showManual) R.string.create_hide_manual else R.string.create_show_manual))
         }
-        if (url.isNotBlank()) {
-            val validation = RtmpUrlValidator.validate(url)
-            if (validation != RtmpUrlValidation.VALID) {
-                Text(stringResource(when (validation) {
-                    RtmpUrlValidation.YOUTUBE_STREAM_KEY_MISSING -> R.string.create_match_error_youtube_key
-                    RtmpUrlValidation.FACEBOOK_STREAM_KEY_MISSING -> R.string.create_match_error_facebook_key
-                    else -> R.string.create_match_error3
-                }), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        if (showManual) {
+            Text((if (available("custom")) "" else "🔒 ") + stringResource(R.string.destination_full_url), style = MaterialTheme.typography.titleMedium)
+            if (!available("custom")) TextButton(onClick = { openAccountPlans(context) }) { Text(stringResource(R.string.account_plans)) }
+            Text(stringResource(R.string.destination_manual_hint), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(
+                value = url, enabled = enabled,
+                onValueChange = { value ->
+                    url = value
+                    selectionNotice = null
+                    notice = null
+                    // Manual edits deliberately discard social metadata that may no longer match the URL.
+                    select(value.takeIf { it.isNotBlank() }?.let {
+                        StreamDestination(StreamPlatform.CUSTOM, streamDestinationHost(it), it.trim())
+                    })
+                },
+                label = { Text(stringResource(R.string.url_rtmp_label)) },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                visualTransformation = if (revealUrl) VisualTransformation.None else PasswordVisualTransformation(),
+                isError = url.isNotBlank() && !RtmpUrlValidator.isValid(url)
+            )
+            if (url.isNotEmpty()) {
+                TextButton(onClick = { revealUrl = !revealUrl }, enabled = enabled) {
+                    Text(stringResource(if (revealUrl) R.string.destination_hide_key else R.string.destination_show_key))
+                }
+            }
+            if (url.isNotBlank()) {
+                val validation = RtmpUrlValidator.validate(url)
+                if (validation != RtmpUrlValidation.VALID) {
+                    Text(stringResource(when (validation) {
+                        RtmpUrlValidation.YOUTUBE_STREAM_KEY_MISSING -> R.string.create_match_error_youtube_key
+                        RtmpUrlValidation.FACEBOOK_STREAM_KEY_MISSING -> R.string.create_match_error_facebook_key
+                        else -> R.string.create_match_error3
+                    }), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
         if (selection?.platform == StreamPlatform.YOUTUBE || noticePlatform == StreamPlatform.YOUTUBE) {
@@ -418,25 +425,13 @@ fun StreamDestinationPicker(
     if (showYouTubeOptions) {
         DestinationDialog("YouTube", { showYouTubeOptions = false }) {
             if (notice == R.string.youtube_verify_key_again) Text(stringResource(R.string.youtube_verify_key_again))
-            Text(stringResource(R.string.youtube_recommended), style = MaterialTheme.typography.labelLarge)
-            Text((if (available("youtubeDirect")) "" else "🔒 ") + stringResource(R.string.youtube_studio_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.youtube_studio_description))
-            Text(stringResource(R.string.youtube_reserved_key_explanation), style = MaterialTheme.typography.bodySmall)
-            Button(modifier = Modifier.fillMaxWidth(), onClick = {
-                if (available("youtubeDirect")) {
-                    setupManaged = false
-                    showYouTubeOptions = false
-                    connectYouTube()
-                } else openAccountPlans(context)
-            }) { Text(stringResource(R.string.youtube_select_key)) }
-            TextButton(onClick = { showStudioGuide = true }) { Text(stringResource(R.string.youtube_studio_guide_title)) }
-            HorizontalDivider()
+            Text(stringResource(R.string.create_youtube_easy), style = MaterialTheme.typography.labelLarge)
             Text((if (available("youtubeManaged")) "" else "🔒 ") + stringResource(R.string.youtube_managed_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.youtube_managed_description))
             Text(stringResource(R.string.youtube_managed_access_hint), style = MaterialTheme.typography.bodySmall)
             managedAccessError?.let { Text(stringResource(youtubeFailureMessage(it)), color = MaterialTheme.colorScheme.error) }
             if (checkingManagedAccess) CircularProgressIndicator()
-            OutlinedButton(modifier = Modifier.fillMaxWidth(), enabled = !checkingManagedAccess, onClick = {
+            Button(modifier = Modifier.fillMaxWidth(), enabled = !checkingManagedAccess, onClick = {
                 if (!available("youtubeManaged")) {
                     openAccountPlans(context)
                 } else {
@@ -455,6 +450,19 @@ fun StreamDestinationPicker(
                 }
                 }
             }) { Text(stringResource(R.string.youtube_configure_event)) }
+            HorizontalDivider()
+            Text((if (available("youtubeDirect")) "" else "🔒 ") + stringResource(R.string.youtube_studio_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.youtube_studio_description))
+            Text(stringResource(R.string.youtube_reserved_key_explanation), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                if (available("youtubeDirect")) {
+                    setupManaged = false
+                    showYouTubeOptions = false
+                    connectYouTube()
+                } else openAccountPlans(context)
+            }) { Text(stringResource(R.string.youtube_select_key)) }
+            TextButton(onClick = { showStudioGuide = true }) { Text(stringResource(R.string.youtube_studio_guide_title)) }
+
         }
     }
     if (showStudioGuide) DestinationDialog(stringResource(R.string.youtube_studio_guide_title), { showStudioGuide = false }) {
@@ -474,7 +482,6 @@ fun StreamDestinationPicker(
                         Text(stringResource(R.string.youtube_setup_kids))
                     }
                     Text(stringResource(R.string.youtube_setup_kids_hint))
-                    Text(stringResource(R.string.youtube_reserved_key_explanation))
                 }
             },
             confirmButton = {

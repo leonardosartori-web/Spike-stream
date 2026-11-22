@@ -82,7 +82,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
-class TokenManager(private val context: Context) {
+class TokenManager private constructor(private val context: Context) {
 
     private val PREFS_NAME = "secure_user_prefs"
 
@@ -126,6 +126,10 @@ class TokenManager(private val context: Context) {
 
     companion object {
         private val AUTH_LOCK = Any()
+        @Volatile private var instance: TokenManager? = null
+        operator fun invoke(context: Context): TokenManager = instance ?: synchronized(AUTH_LOCK) {
+            instance ?: TokenManager(context.applicationContext).also { instance = it }
+        }
         private val JWT_REGEX = Regex("^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$")
         fun isValidJwt(token: String): Boolean = JWT_REGEX.matches(token)
     }
@@ -133,22 +137,31 @@ class TokenManager(private val context: Context) {
     fun beginGoogleLogin(): String = synchronized(AUTH_LOCK) {
         val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
         val state = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
-        check(sharedPrefs.edit().putString("pending_google_state", state).putLong("pending_google_started", System.currentTimeMillis()).commit())
+        check(sharedPrefs.edit().putString("pending_google_state", state).putBoolean("pending_google_code_flow", true)
+            .putLong("pending_google_started", System.currentTimeMillis()).commit())
         state
     }
     fun cancelGoogleLogin() = synchronized(AUTH_LOCK) {
         sharedPrefs.edit().remove("pending_google_state").remove("pending_google_started").apply()
     }
     suspend fun acceptGoogleCallback(raw: String): Boolean {
-        val candidate = AppAuthCallback.token(raw) ?: return false
-        val state = runCatching {
-            org.json.JSONObject(String(android.util.Base64.decode(candidate.split('.')[1], android.util.Base64.URL_SAFE), Charsets.UTF_8)).optString("appLoginState")
-        }.getOrNull() ?: return false
+        val state = synchronized(AUTH_LOCK) { sharedPrefs.getString("pending_google_state", null) } ?: return false
         fun pendingMatches() = AppAuthCallback.matches(sharedPrefs.getString("pending_google_state", null), state,
             sharedPrefs.getLong("pending_google_started", 0), System.currentTimeMillis())
         if (!synchronized(AUTH_LOCK) { pendingMatches() }) return false
-        // The backend verifies the signature, expiry, account and access-token type.
-        val verified = AccountAccessApi.refresh(candidate) ?: return false
+        val code = AppAuthCallback.code(raw)
+        val verified = if (code != null) {
+            AccountAccessApi.exchange(code, state)
+        } else {
+            // Only a login started by an older app version can use the legacy callback.
+            if (sharedPrefs.getBoolean("pending_google_code_flow", false)) return false
+            val candidate = AppAuthCallback.token(raw) ?: return false
+            val boundState = runCatching {
+                org.json.JSONObject(String(android.util.Base64.decode(candidate.split('.')[1], android.util.Base64.URL_SAFE), Charsets.UTF_8)).optString("appLoginState")
+            }.getOrNull()
+            if (boundState != state) return false
+            AccountAccessApi.refresh(candidate)
+        } ?: return false
         if (!isValidJwt(verified)) return false
         return withContext(Dispatchers.IO) {
             synchronized(AUTH_LOCK) {
@@ -162,23 +175,26 @@ class TokenManager(private val context: Context) {
         }
     }
 
-    suspend fun saveToken(token: String) {
+    suspend fun saveToken(token: String, expectedToken: String? = null): Boolean =
         withContext(Dispatchers.IO) {
             try {
                 synchronized(AUTH_LOCK) {
+                    if (expectedToken != null && currentToken != expectedToken) return@synchronized false
                     sharedPrefs.edit().putString("auth_token", token).remove("pending_google_state").remove("pending_google_started").apply()
                     _tokenFlow.value = token
+                    true
                 }
             } catch (e: Exception) {
                 android.util.Log.e("TokenManager", "Impossibile salvare il token")
+                false
             }
         }
-    }
 
-    suspend fun clearToken() {
+    suspend fun clearToken(expectedToken: String? = null) {
         withContext(Dispatchers.IO) {
             try {
                 synchronized(AUTH_LOCK) {
+                    if (expectedToken != null && currentToken != expectedToken) return@synchronized
                     sharedPrefs.edit().remove("auth_token").remove("pending_google_state").remove("pending_google_started").apply()
                     _tokenFlow.value = null
                 }
@@ -242,7 +258,7 @@ class MainActivity : AnimatedAppActivity() {
         enableEdgeToEdge()
 
         tokenManager = TokenManager(applicationContext)
-        latestIntentData = intent?.takeIf { it.action == Intent.ACTION_VIEW && AppAuthCallback.token(it.dataString) != null }?.data
+        latestIntentData = intent?.takeIf { it.action == Intent.ACTION_VIEW && AppAuthCallback.accepts(it.dataString) }?.data
         appUpdateManager = AppUpdateManagerFactory.create(this)
 
         val hasStoredAuthentication = !tokenManager.currentToken.isNullOrBlank()
@@ -630,7 +646,17 @@ class MainActivity : AnimatedAppActivity() {
                     else Toast.makeText(context, R.string.auth_callback_rejected, Toast.LENGTH_LONG).show()
                 }
 
-                AnimatedContent(
+                if (latestIntentData != null) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text(stringResource(R.string.auth_completing))
+                    }
+                } else AnimatedContent(
                     targetState = tokenState.value,
                     transitionSpec = {
                         (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 18 }) togetherWith
@@ -659,8 +685,8 @@ class MainActivity : AnimatedAppActivity() {
                                 LoginScreen(
                                     onLoginSuccess = { newToken ->
                                         coroutineScope.launch {
-                                            tokenManager.saveToken(newToken)
-                                            tokenState.value = newToken
+                                            if (!tokenManager.saveToken(newToken))
+                                                Toast.makeText(context, R.string.auth_callback_rejected, Toast.LENGTH_LONG).show()
                                         }
                                     },
                                     onRegisterClick = { showRegister.value = true },
@@ -682,8 +708,7 @@ class MainActivity : AnimatedAppActivity() {
                             },
                             onTokenExpired = {
                                 lifecycleScope.launch {
-                                    tokenManager.clearToken()
-                                    tokenState.value = null
+                                    tokenManager.clearToken(activeToken)
                                 }
                             }
                         )
@@ -699,7 +724,7 @@ class MainActivity : AnimatedAppActivity() {
         setIntent(intent)
         // State-backed so an authentication callback is processed even when the
         // existing MainActivity instance receives the deep link.
-        latestIntentData = intent.takeIf { it.action == Intent.ACTION_VIEW && AppAuthCallback.token(it.dataString) != null }?.data
+        latestIntentData = intent.takeIf { it.action == Intent.ACTION_VIEW && AppAuthCallback.accepts(it.dataString) }?.data
     }
 
     override fun onRestart() {
@@ -925,23 +950,6 @@ fun DashboardScreen(
                     streams.clear()
                     streams.addAll(streamInfos)
                     
-                    // Sync recent RTMP list with current active matches
-                    scope.launch(Dispatchers.IO) {
-                        try {
-                            val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-                            val prefs = EncryptedSharedPreferences.create(
-                                context,
-                                "secure_user_prefs",
-                                masterKey,
-                                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                            )
-                            val currentUrls = streamInfos.map { it.rtmpUrl }.filter { it.isNotBlank() }.toSet()
-                            prefs.edit().putStringSet("recent_rtmps", currentUrls).apply()
-                        } catch (e: Exception) {
-                            Log.e("Dashboard", "Failed to sync recent RTMPs", e)
-                        }
-                    }
                 }
                 is GamesResult.Error -> {
                     isRefreshing.value = false
@@ -1067,6 +1075,7 @@ fun DashboardScreen(
                                 modifier = Modifier.tourHighlight(tourController, "match_card", RoundedCornerShape(24.dp)),
                                 onClick = {
                                     val intent = Intent(context, MatchOptionsActivity::class.java).apply {
+                                        putExtra("MATCH_OWNER", AccountAccess.owner(token))
                                         putExtra("TEAM_1", stream.teamA)
                                         putExtra("TEAM_2", stream.teamB)
                                         putExtra("MATCH_ID", stream.matchId)

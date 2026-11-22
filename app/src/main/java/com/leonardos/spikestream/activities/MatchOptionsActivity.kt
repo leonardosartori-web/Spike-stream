@@ -147,39 +147,13 @@ class MatchOptionsActivity : AnimatedAppActivity() {
                     color = MaterialTheme.colorScheme.background
                 )
                 {
-                    val tokenState = remember { mutableStateOf<String?>(null) }
-                    val coroutineScope = rememberCoroutineScope()
-
-                    LaunchedEffect(Unit) {
-                        tokenManager.tokenFlow.collect { token ->
-                            tokenState.value = token
+                    val token by tokenManager.tokenFlow.collectAsState(initial = tokenManager.currentToken)
+                    val owner = intent.getStringExtra("MATCH_OWNER")
+                    if (token == null || (owner != null && token?.let(AccountAccess::owner) != owner)) {
+                        LaunchedEffect(Unit) {
+                            startActivity(Intent(this@MatchOptionsActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                            finish()
                         }
-                    }
-
-                    val showRegister = remember { mutableStateOf(false) }
-
-                    if (tokenState.value == null) {
-                        // Mostra la login
-                        LoginScreen(onLoginSuccess = { newToken ->
-                            coroutineScope.launch {
-                                tokenManager.saveToken(newToken)
-                                tokenState.value = newToken
-                            }
-                        },
-                            onRegisterClick = {
-                                showRegister.value = true
-                            },
-                            onGoogleLoginClick = {
-                                com.leonardos.spikestream.data.launchGoogleLogin(this)
-                            },
-                            onForgotPasswordClick = {
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse("${Constants.BASE_URL}/auth/reset-password")
-                                )
-                                startActivity(intent)
-                            }
-                        )
                     } else {
                         val rewardedAdState = remember { mutableStateOf<RewardedInterstitialAd?>(null) }
                         val adLoadingState = remember { mutableStateOf(true) }
@@ -591,6 +565,7 @@ fun MatchOptionsScreen(
                 onClick = {
                     val cameraId = selectedCameraId ?: return@SpikeStreamPrimaryButton
                     val intent = Intent(context, StreamActivity::class.java).apply {
+                        putExtra("MATCH_OWNER", activity.intent.getStringExtra("MATCH_OWNER"))
                         putExtra("TEAM_1", teamA)
                         putExtra("TEAM_2", teamB)
                         putExtra("RTMP_URL", rtmpUrl)
@@ -1223,6 +1198,9 @@ fun handleInviteLink(
                         try {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText(context.getString(R.string.invite_link), result.link)
+                            clip.description.extras = android.os.PersistableBundle().apply {
+                                putBoolean("android.content.extra.IS_SENSITIVE", true)
+                            }
                             clipboard.setPrimaryClip(clip)
                             Log.d("SPIKESTREAM_DEBUG", "5. Clipboard impostata con successo")
                             Toast.makeText(context, context.getString(R.string.copy_link), Toast.LENGTH_SHORT).show()

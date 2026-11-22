@@ -395,6 +395,12 @@ class StreamActivity : ComponentActivity(), ConnectChecker {
         // Authenticates and connects WebSocket once the User token is loaded
         LaunchedEffect(Unit) {
             tokenManager.tokenFlow.collect { token ->
+                val owner = intent.getStringExtra("MATCH_OWNER")
+                if (owner != null && token?.let(com.leonardos.spikestream.data.AccountAccess::owner) != owner) {
+                    socketManager.disconnect()
+                    finish()
+                    return@collect
+                }
                 if (token != null && matchId.isNotBlank()) {
                     socketManager.connect(token)
                 } else {

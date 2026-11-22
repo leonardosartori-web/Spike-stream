@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="create_intro">Préparez le match en 3 étapes. La diffusion démarre ensuite.</string>
+    <string name="create_step_teams">1. Qui joue ?</string>
+    <string name="create_step_channel">2. Où regarder le match ?</string>
+    <string name="create_channel_hint">Choisissez YouTube pour connecter une chaîne. Pour Facebook, ouvrez le guide. Vous avez déjà diffusé ? Réutilisez une chaîne enregistrée.</string>
+    <string name="create_step_review">3. Créez le match</string>
+    <string name="create_next">Après la création, ouvrez le match, préparez la caméra et lancez la diffusion quand vous êtes prêt.</string>
+    <string name="create_missing_teams">Saisissez les noms des deux équipes à l’étape 1.</string>
+    <string name="create_missing_channel">Choisissez et configurez une chaîne à l’étape 2 pour continuer.</string>
+    <string name="create_checking">Vérification de l’accès…</string>
+    <string name="create_reuse_channel">Réutiliser une chaîne connectée</string>
+    <string name="create_show_manual">Autres services ou adresse manuelle (RTMP)</string>
+    <string name="create_hide_manual">Masquer l’adresse manuelle</string>
+    <string name="create_youtube_easy">Première fois ? Commencez ici</string>
+</resources>

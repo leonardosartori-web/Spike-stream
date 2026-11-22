@@ -119,13 +119,13 @@ object StreamApi {
                 .post(requestBody)
                 .build()
 
-            val response = client.newCall(request).execute()
-
-            if (response.isSuccessful) {
-                "Success! Controlla l'email per confermare."
-            } else {
-                Log.w("Auth", "Register failed: HTTP ${response.code()}")
-                "Registrazione non riuscita. Controlla i dati e riprova."
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    "Success! Controlla l'email per confermare."
+                } else {
+                    Log.w("Auth", "Register failed: HTTP ${response.code()}")
+                    "Registrazione non riuscita. Controlla i dati e riprova."
+                }
             }
 
         } catch (e: Exception) {
@@ -156,7 +156,8 @@ object StreamApi {
             } else {
                 val code = response.code()
                 Log.w("Games", "Get games failed: HTTP $code")
-                GamesResult.Error("Sessione scaduta. Accedi di nuovo.", isAuthError = code == 401)
+                if (code == 401) GamesResult.Error("Sessione scaduta. Accedi di nuovo.", isAuthError = true)
+                else GamesResult.Error("Impossibile caricare le partite. Riprova.")
             }
 
         } catch (e: Exception) {
@@ -410,8 +411,7 @@ object StreamApi {
                 .delete()
                 .build()
 
-            val response = client.newCall(request).execute()
-            response.isSuccessful
+            client.newCall(request).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             Log.e("Games", "Delete match request failed", e)
             false
@@ -427,8 +427,7 @@ object StreamApi {
                 .delete()
                 .build()
 
-            val response = client.newCall(request).execute()
-            response.isSuccessful
+            client.newCall(request).execute().use { it.isSuccessful }
         } catch (e: Exception) {
             Log.e("Settings", "Delete account failed", e)
             false

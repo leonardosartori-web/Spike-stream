@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="create_intro">Prepara la partita in 3 passaggi. La ripresa si avvia dopo.</string>
+    <string name="create_step_teams">1. Chi gioca?</string>
+    <string name="create_step_channel">2. Dove si guarda la partita?</string>
+    <string name="create_channel_hint">Scegli YouTube per collegare il canale. Per Facebook apri la guida. Hai già trasmesso? Riusa un canale salvato.</string>
+    <string name="create_step_review">3. Crea la partita</string>
+    <string name="create_next">Dopo la creazione, apri la partita, prepara la ripresa e premi Avvia streaming quando sei pronto.</string>
+    <string name="create_missing_teams">Inserisci i nomi di entrambe le squadre al passaggio 1.</string>
+    <string name="create_missing_channel">Scegli e configura un canale al passaggio 2 per continuare.</string>
+    <string name="create_checking">Verifica dell’accesso in corso…</string>
+    <string name="create_reuse_channel">Riusa un canale già collegato</string>
+    <string name="create_show_manual">Altri servizi o indirizzo manuale (RTMP)</string>
+    <string name="create_hide_manual">Nascondi indirizzo manuale</string>
+    <string name="create_youtube_easy">Prima volta? Inizia da qui</string>
+</resources>

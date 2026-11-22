@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="youtube_setup_button">Create reusable key</string>
-    <string name="youtube_setup_confirm">Create or retrieve key</string>
+    <string name="youtube_setup_confirm">Continue with Google</string>
     <string name="youtube_setup_intro">Authorize YouTube to create or retrieve a reusable RTMP key. No events are created and the SpikeStream server does not store Google access tokens. Before streaming, configure the broadcast as Public in YouTube Studio: the key does not set video visibility.</string>
     <string name="youtube_setup_created">Key ready. Before streaming, set Public visibility in YouTube Studio.</string>
     <string name="youtube_setup_ended">Key recovered. The initial event ended or was removed: prepare the broadcast in YouTube Studio. SpikeStream does not create another event.</string>

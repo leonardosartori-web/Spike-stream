@@ -21,10 +21,69 @@ class LocalRtmpTransportTest {
     private fun field(target: Any, name: String): Any? =
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
 
+    @Test fun stalledHandshakeRetriesWhileCameraKeepsEncoding() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val permissions = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        if (android.os.Build.VERSION.SDK_INT >= 33) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        for (permission in permissions) {
+            ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                "pm grant ${context.packageName} $permission")).use { it.readBytes() }
+        }
+        val server = java.net.ServerSocket(0, 4, java.net.InetAddress.getByName("127.0.0.1"))
+        val sockets = java.util.concurrent.CopyOnWriteArrayList<java.net.Socket>()
+        val receiver = kotlin.concurrent.thread(isDaemon = true) {
+            try {
+                while (!server.isClosed) sockets.add(server.accept())
+            } catch (_: java.net.SocketException) {
+                // Closing the test server unblocks accept.
+            }
+        }
+        val endpoint = "rtmp://127.0.0.1:${server.localPort}/live/stalled"
+        val intent = Intent(context, StreamActivity::class.java).apply {
+            putExtra("RTMP_URL", endpoint)
+            putExtra("MATCH_ID", "")
+            putExtra("CAMERA_ID", "0")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            ActivityScenario.launch<StreamActivity>(intent).use { scenario ->
+                var prepared = false
+                val previewDeadline = SystemClock.elapsedRealtime() + 20_000
+                while (!prepared && SystemClock.elapsedRealtime() < previewDeadline) {
+                    scenario.onActivity { prepared = field(it, "preparedCamera") != null }
+                    SystemClock.sleep(100)
+                }
+                assertTrue("Camera not prepared", prepared)
+                scenario.onActivity {
+                    it.javaClass.getDeclaredMethod("startLiveSession", String::class.java,
+                        Boolean::class.javaPrimitiveType, StreamQualityMode::class.java).apply { isAccessible = true }
+                        .invoke(it, endpoint, it.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT,
+                            StreamQualityMode.HD_720)
+                }
+                val deadline = SystemClock.elapsedRealtime() + 30_000
+                while (sockets.size < 2 && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(100)
+                assertTrue("Stalled handshake was never retried", sockets.size >= 2)
+                scenario.onActivity {
+                    val monitor = field(it, "bitrateMonitor")!!
+                    val telemetry = field(monitor, "telemetry") as StreamTelemetry
+                    assertNotEquals(BroadcastStatus.ERROR, telemetry.status)
+                    assertTrue((field(it, "rtmpCamera") as AdaptiveRtmpCamera).isStreaming)
+                }
+            }
+        } finally {
+            server.close()
+            receiver.join(2_000)
+            sockets.forEach { it.close() }
+        }
+    }
     @Test fun encodes720pAdaptsAndReconnectsToLocalReceiver() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        for (permission in listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)) {
+        val permissions = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        if (android.os.Build.VERSION.SDK_INT >= 33) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (android.os.Build.VERSION.SDK_INT >= 37) permissions.add("android.permission.ACCESS_LOCAL_NETWORK")
+        for (permission in permissions) {
             ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
                 "pm grant ${context.packageName} $permission")).use { it.readBytes() }
         }
@@ -49,6 +108,19 @@ class LocalRtmpTransportTest {
                     .invoke(it, endpoint, it.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT,
                         StreamQualityMode.HD_720)
             }
+            // The emulator camera alone compresses below 0.5 Mbps. A changing
+            // detailed overlay exercises encoder and network pressure repeatably.
+            val random = java.util.Random(42)
+            fun detailedFrame(): android.graphics.Bitmap {
+                val pixels = IntArray(640 * 360) { 0xff000000.toInt() or random.nextInt(0x1000000) }
+                return android.graphics.Bitmap.createBitmap(pixels, 640, 360, android.graphics.Bitmap.Config.ARGB_8888)
+            }
+            val detailFilter = com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender().apply {
+                setImage(detailedFrame())
+                setScale(100f, 100f)
+                setPosition(0f, 0f)
+            }
+            scenario.onActivity { (field(it, "rtmpCamera") as AdaptiveRtmpCamera).glInterface.addFilter(detailFilter) }
             val start = SystemClock.elapsedRealtime()
             var hadLive = false
             var hadRecovery = false
@@ -58,7 +130,9 @@ class LocalRtmpTransportTest {
             var minTarget = Int.MAX_VALUE
             var finalStatus = BroadcastStatus.IDLE
             while (SystemClock.elapsedRealtime() - start < 150_000) {
+                val frame = detailedFrame()
                 scenario.onActivity { activity ->
+                    detailFilter.setImage(frame)
                     val t = field(field(activity, "bitrateMonitor")!!, "telemetry") as StreamTelemetry
                     val ms = SystemClock.elapsedRealtime() - start
                     hadRecovery = hadRecovery || (hadLive && t.status == BroadcastStatus.RECOVERING)
